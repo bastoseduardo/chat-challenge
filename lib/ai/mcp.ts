@@ -28,12 +28,39 @@ const INTERNAL_SERVERS: Record<string, (userId: string) => InMemoryMCPTransport>
     new InMemoryMCPTransport((msg) => handleUserNotesRpc(msg, userId)),
 }
 
-function pickInternalPath(url: string, appUrl: string): string | null {
-  if (!appUrl) return null
-  if (!url.startsWith(appUrl)) return null
-  const path = url.slice(appUrl.length)
+function getInternalHosts(): string[] {
+  const hosts = new Set<string>()
+  const sources = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.VERCEL_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_BRANCH_URL,
+  ]
+  for (const src of sources) {
+    if (!src) continue
+    try {
+      // envs do Vercel vêm sem scheme (ex: "chat-challenge-six.vercel.app")
+      const url = src.startsWith("http") ? src : `https://${src}`
+      hosts.add(new URL(url).host.toLowerCase())
+    } catch {}
+  }
+  hosts.add("localhost:3000")
+  hosts.add("localhost")
+  return [...hosts]
+}
+
+function pickInternalPath(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const hosts = getInternalHosts()
+  if (!hosts.includes(parsed.host.toLowerCase())) return null
+  const path = parsed.pathname
   for (const key of Object.keys(INTERNAL_SERVERS)) {
-    if (path === key || path.startsWith(key + "?")) return key
+    if (path === key || path.startsWith(key + "/")) return key
   }
   return null
 }
@@ -52,11 +79,9 @@ export async function loadMcpTools(opts: {
   const config = opts.mcpConfig as McpConfig | undefined
   if (!config?.servers?.length) return out
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
-
   for (const server of config.servers) {
     try {
-      const internalPath = pickInternalPath(server.transport.url, appUrl)
+      const internalPath = pickInternalPath(server.transport.url)
 
       let client: Awaited<ReturnType<typeof createMCPClient>>
       if (internalPath) {
@@ -99,7 +124,12 @@ export async function loadMcpTools(opts: {
       })
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "unknown"
-      console.error(`[mcp] server "${server.name}" failed:`, err)
+      console.error(
+        `[mcp] server "${server.name}" (${server.transport.url}) failed:`,
+        err,
+        "| internal hosts:",
+        getInternalHosts()
+      )
       await logAudit({
         userId: opts.userId,
         eventType: "mcp.server.connected",
@@ -108,6 +138,7 @@ export async function loadMcpTools(opts: {
           name: server.name,
           url: server.transport.url,
           error: errMsg,
+          internal_hosts: getInternalHosts(),
           success: false,
         },
       })
