@@ -6,11 +6,13 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { ArrowUp, Share2, Loader2 } from "lucide-react"
+import { ArrowUp, Share2, Loader2, Paperclip } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { MessageBubble } from "./message-bubble"
 import { ShareDialog } from "./share-dialog"
+import { AttachmentTiles } from "./attachment-tiles"
+import { useAttachments } from "./use-attachments"
 
 interface ChatViewProps {
   conversationId: string
@@ -29,15 +31,23 @@ export function ChatView({
   const [input, setInput] = useState("")
   const [shareOpen, setShareOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const titledRef = useRef(initialMessages.length > 0)
+  const attach = useAttachments(conversationId)
 
   const { messages, sendMessage, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      prepareSendMessagesRequest({ messages }) {
-        return { body: { conversationId, messages } }
+      prepareSendMessagesRequest({ messages, body }) {
+        return {
+          body: {
+            conversationId,
+            messages,
+            attachments: (body as { attachments?: unknown })?.attachments ?? [],
+          },
+        }
       },
     }),
     onFinish: async ({ message }) => {
@@ -72,10 +82,25 @@ export function ChatView({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const text = input.trim()
-    if (!text) return
+    if (!text && attach.ready.length === 0) return
+    if (attach.isUploading) {
+      toast.info("Aguarde o upload terminar")
+      return
+    }
     setInput("")
+    const attachmentsPayload = attach.ready.map((a) => ({
+      storagePath: a.storagePath!,
+      kind: a.kind,
+      mimeType: a.mimeType,
+      originalName: a.originalName,
+      sizeBytes: a.sizeBytes,
+    }))
+    attach.reset()
     try {
-      await sendMessage({ text })
+      await sendMessage(
+        { text: text || "(ver anexos)" },
+        { body: { attachments: attachmentsPayload } }
+      )
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao enviar"
       toast.error(msg)
@@ -86,7 +111,7 @@ export function ChatView({
 
   useEffect(() => {
     if (error) {
-      const anyErr = error as unknown as { message?: string; status?: number }
+      const anyErr = error as unknown as { message?: string }
       if (anyErr?.message?.toLowerCase().includes("quota")) {
         toast.error("Limite diário de tokens atingido.")
       } else {
@@ -135,24 +160,53 @@ export function ChatView({
       </div>
 
       <form onSubmit={handleSubmit} className="border-t p-4 shrink-0">
-        <div className="max-w-3xl mx-auto flex gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Digite sua mensagem... (Shift+Enter para nova linha)"
-            className="flex-1 resize-none min-h-[52px] max-h-48"
-            rows={1}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                handleSubmit(e)
-              }
-            }}
-            disabled={isLoading}
-          />
-          <Button type="submit" size="icon" disabled={!input.trim() || isLoading} className="h-[52px] w-[52px] shrink-0">
-            <ArrowUp className="w-5 h-5" />
-          </Button>
+        <div className="max-w-3xl mx-auto">
+          <AttachmentTiles items={attach.items} onRemove={attach.remove} />
+          <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) void attach.add(e.target.files)
+                e.target.value = ""
+              }}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-[52px] w-[52px] shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+            >
+              <Paperclip className="w-5 h-5" />
+            </Button>
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Digite sua mensagem... (Shift+Enter para nova linha)"
+              className="flex-1 resize-none min-h-[52px] max-h-48"
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit(e)
+                }
+              }}
+              disabled={isLoading}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={(!input.trim() && attach.ready.length === 0) || isLoading}
+              className="h-[52px] w-[52px] shrink-0"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </form>
 

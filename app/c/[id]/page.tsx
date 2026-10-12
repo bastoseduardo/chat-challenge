@@ -2,12 +2,9 @@ export const dynamic = "force-dynamic"
 
 import { notFound, redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import {
-  getConversation,
-  listMessages,
-} from "@/lib/db/queries/conversations"
+import { getConversation } from "@/lib/db/queries/conversations"
+import { listMessagesWithAttachments } from "@/lib/db/queries/messages-with-attachments"
 import { ChatView } from "@/components/chat/chat-view"
-import type { UIMessage } from "ai"
 
 export default async function ConversationPage({
   params,
@@ -24,14 +21,7 @@ export default async function ConversationPage({
   const conv = await getConversation(id, user.id)
   if (!conv) notFound()
 
-  const rows = await listMessages(id)
-  const initialMessages: UIMessage[] = rows
-    .filter((r) => !r.isSummary)
-    .map((r) => ({
-      id: r.id,
-      role: r.role as UIMessage["role"],
-      parts: (Array.isArray(r.content) ? r.content : []) as UIMessage["parts"],
-    }))
+  const initialMessages = await listMessagesWithAttachments(id)
 
   return (
     <ChatView

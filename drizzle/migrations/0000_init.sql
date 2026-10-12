@@ -22,10 +22,7 @@ CREATE TABLE "audit_events" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "auth"."users" (
-	"id" uuid PRIMARY KEY NOT NULL
-);
---> statement-breakpoint
+-- auth.users is managed by Supabase Auth; do not create.
 CREATE TABLE "conversations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
