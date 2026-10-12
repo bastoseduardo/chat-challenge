@@ -11,34 +11,57 @@ export const webSearchTool = tool({
   execute: async ({ query, max_results }) => {
     const apiKey = process.env.TAVILY_API_KEY
     if (!apiKey) {
-      return { error: "TAVILY_API_KEY não configurada" }
+      console.error("[web_search] TAVILY_API_KEY not set")
+      return { error: "TAVILY_API_KEY não configurada no servidor" }
     }
-    const res = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        max_results,
-        include_answer: false,
-        search_depth: "basic",
-      }),
-    })
-    if (!res.ok) {
-      return { error: `Tavily ${res.status}` }
-    }
-    const data = (await res.json()) as {
-      results?: Array<{ title: string; url: string; content: string; published_date?: string }>
-    }
-    return {
-      query,
-      results:
+
+    try {
+      const res = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          query,
+          max_results,
+          include_answer: false,
+          search_depth: "basic",
+        }),
+      })
+
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "")
+        console.error(`[web_search] Tavily ${res.status}:`, detail)
+        return {
+          error: `Tavily respondeu ${res.status}: ${detail.slice(0, 300)}`,
+          query,
+        }
+      }
+
+      const data = (await res.json()) as {
+        results?: Array<{
+          title: string
+          url: string
+          content: string
+          published_date?: string
+        }>
+      }
+
+      const results =
         data.results?.map((r) => ({
           title: r.title,
           url: r.url,
           snippet: (r.content || "").slice(0, 400),
           published_date: r.published_date,
-        })) ?? [],
+        })) ?? []
+
+      console.log(`[web_search] "${query}" → ${results.length} results`)
+      return { query, results }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown"
+      console.error("[web_search] fetch failed:", msg)
+      return { error: `Erro de rede ao chamar Tavily: ${msg}`, query }
     }
   },
 })

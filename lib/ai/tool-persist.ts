@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit/log"
 interface Args {
   userId: string
   messageId: string
+  mcpToolNames?: Set<string>
   toolCalls: Array<{
     toolCallId?: string
     toolName?: string
@@ -22,6 +23,7 @@ interface Args {
 export async function persistToolInvocations({
   userId,
   messageId,
+  mcpToolNames,
   toolCalls,
   toolResults,
 }: Args): Promise<void> {
@@ -32,13 +34,14 @@ export async function persistToolInvocations({
   }
   for (const call of toolCalls) {
     const toolName = call.toolName ?? "unknown"
+    const toolSource = mcpToolNames?.has(toolName) ? "mcp" : "builtin"
     const args = (call.input ?? call.args ?? {}) as unknown
     const result = call.toolCallId ? resultByCallId.get(call.toolCallId) : undefined
     try {
       await db.insert(toolInvocations).values({
         messageId,
         toolName,
-        toolSource: "builtin",
+        toolSource,
         args: args as object,
         result: (result ?? null) as object | null,
       })
@@ -52,7 +55,7 @@ export async function persistToolInvocations({
       resourceId: messageId,
       metadata: {
         tool_name: toolName,
-        tool_source: "builtin",
+        tool_source: toolSource,
         has_result: result !== undefined,
       },
     })

@@ -76,14 +76,45 @@ export function SettingsForm({ initial }: Props) {
         <CardHeader>
           <CardTitle className="text-base">MCP servers (JSON)</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Formato: {'{"servers":[{"name":"...","transport":"sse","config":{"url":"..."}}]}'}
+            Model Context Protocol — adicione servers HTTP ou SSE. Para o server interno
+            de notas, use o exemplo abaixo:
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              const appUrl =
+                typeof window !== "undefined"
+                  ? window.location.origin
+                  : ""
+              setMcpConfig(
+                JSON.stringify(
+                  {
+                    servers: [
+                      {
+                        name: "user-notes",
+                        transport: {
+                          type: "http",
+                          url: `${appUrl}/api/mcp/user-notes`,
+                        },
+                      },
+                    ],
+                  },
+                  null,
+                  2
+                )
+              )
+            }}
+            className="text-xs underline text-primary"
+          >
+            Preencher com o server &quot;user-notes&quot; (notas pessoais)
+          </button>
           <Textarea
             value={mcpConfig}
             onChange={(e) => setMcpConfig(e.target.value)}
-            className="font-mono text-xs min-h-[160px]"
+            className="font-mono text-xs min-h-[180px]"
+            placeholder={`{\n  "servers": [\n    {\n      "name": "exemplo",\n      "transport": {\n        "type": "http",\n        "url": "https://..."\n      }\n    }\n  ]\n}`}
           />
         </CardContent>
       </Card>

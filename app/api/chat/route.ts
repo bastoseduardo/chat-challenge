@@ -15,6 +15,7 @@ import { getBuiltinTools, type BuiltinToolName } from "@/lib/ai/tools"
 import { persistToolInvocations } from "@/lib/ai/tool-persist"
 import { buildContext } from "@/lib/ai/history"
 import { scheduleCompaction } from "@/lib/ai/compaction"
+import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
 
 export const maxDuration = 60
 
@@ -166,11 +167,16 @@ export async function POST(req: NextRequest) {
   const historyMessages = persistedContext.length > 0 ? persistedContext : modelMessages
 
   const builtinTools = getBuiltinTools(enabledTools)
+  const mcp = await loadMcpTools({
+    userId: user.id,
+    mcpConfig: settings?.mcpConfig,
+  })
+  const allTools = { ...builtinTools, ...mcp.tools }
 
   const result = streamText({
     model: getModel(model),
     messages: historyMessages,
-    tools: builtinTools,
+    tools: allTools,
     stopWhen: ({ steps }) => steps.length >= 5,
     onFinish: async ({ text, usage, finishReason, toolCalls, toolResults }) => {
       const inputTokens = usage?.inputTokens ?? 0
@@ -211,6 +217,7 @@ export async function POST(req: NextRequest) {
         await persistToolInvocations({
           userId: user.id,
           messageId: inserted.id,
+          mcpToolNames: new Set(Object.keys(mcp.tools)),
           toolCalls: toolCalls ?? [],
           toolResults: toolResults ?? [],
         })
@@ -225,6 +232,7 @@ export async function POST(req: NextRequest) {
       })
 
       scheduleCompaction({ conversationId, userId: user.id, model })
+      await closeMcpClients(mcp.clients)
     },
   })
 

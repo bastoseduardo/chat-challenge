@@ -1,5 +1,12 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-import "dotenv/config"
+import { config } from "dotenv"
+import { existsSync } from "node:fs"
+import { resolve } from "node:path"
+
+// Load .env.local first (Next.js convention), then fall back to .env
+for (const file of [".env.local", ".env"]) {
+  const path = resolve(process.cwd(), file)
+  if (existsSync(path)) config({ path, override: false })
+}
 
 const REQUIRED = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -17,7 +24,21 @@ const REQUIRED = [
   "ADMIN_EMAILS",
 ] as const
 
-const missing = REQUIRED.filter((k) => !process.env[k])
+const PLACEHOLDER_PATTERNS = [/^placeholder$/i, /^sk-placeholder$/i, /^tvly-placeholder$/i, /PLACEHOLDER/]
+
+const missing: string[] = []
+const placeholder: string[] = []
+
+for (const key of REQUIRED) {
+  const value = process.env[key]
+  if (!value) {
+    missing.push(key)
+    continue
+  }
+  if (PLACEHOLDER_PATTERNS.some((re) => re.test(value))) {
+    placeholder.push(key)
+  }
+}
 
 if (missing.length > 0) {
   console.error("❌ Missing env vars:")
@@ -26,4 +47,10 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-console.log(`✅ All ${REQUIRED.length} env vars present`)
+if (placeholder.length > 0) {
+  console.warn("⚠️  Env vars still have placeholder values:")
+  for (const k of placeholder) console.warn(`   - ${k}`)
+  console.warn("")
+}
+
+console.log(`✅ All ${REQUIRED.length} env vars present${placeholder.length ? " (with placeholders)" : ""}`)
