@@ -1,6 +1,8 @@
 import { createMCPClient } from "@ai-sdk/mcp"
 import type { ToolSet } from "ai"
 import { logAudit } from "@/lib/audit/log"
+import { InMemoryMCPTransport } from "@/lib/mcp/in-memory-transport"
+import { handleUserNotesRpc } from "@/lib/mcp/user-notes-handler"
 
 export interface McpServerConfig {
   name: string
@@ -21,9 +23,25 @@ export interface LoadedMcp {
   connectedServers: string[]
 }
 
+const INTERNAL_SERVERS: Record<string, (userId: string) => InMemoryMCPTransport> = {
+  "/api/mcp/user-notes": (userId) =>
+    new InMemoryMCPTransport((msg) => handleUserNotesRpc(msg, userId)),
+}
+
+function pickInternalPath(url: string, appUrl: string): string | null {
+  if (!appUrl) return null
+  if (!url.startsWith(appUrl)) return null
+  const path = url.slice(appUrl.length)
+  for (const key of Object.keys(INTERNAL_SERVERS)) {
+    if (path === key || path.startsWith(key + "?")) return key
+  }
+  return null
+}
+
 /**
  * Lê o mcp_config do usuário e carrega as tools dos servers configurados.
- * Para endpoints no mesmo deploy, injeta X-User-Id automaticamente.
+ * Para servers do mesmo deploy, usa transport in-memory (evita o loop
+ * de serverless chamando a si mesmo via HTTP, que falha intermitentemente no Vercel).
  */
 export async function loadMcpTools(opts: {
   userId: string
@@ -38,25 +56,28 @@ export async function loadMcpTools(opts: {
 
   for (const server of config.servers) {
     try {
-      const isInternal = appUrl && server.transport.url.startsWith(appUrl)
-      const headers: Record<string, string> = {
-        ...(server.transport.headers ?? {}),
-      }
-      if (isInternal) {
-        headers["X-User-Id"] = opts.userId
-      }
+      const internalPath = pickInternalPath(server.transport.url, appUrl)
 
-      const client = await createMCPClient({
-        transport: {
-          type: server.transport.type,
-          url: server.transport.url,
-          headers,
-        },
-        protocolVersionDiscovery: false,
-      })
+      let client: Awaited<ReturnType<typeof createMCPClient>>
+      if (internalPath) {
+        const transport = INTERNAL_SERVERS[internalPath](opts.userId)
+        client = await createMCPClient({
+          transport,
+          protocolVersionDiscovery: false,
+        })
+      } else {
+        const headers: Record<string, string> = { ...(server.transport.headers ?? {}) }
+        client = await createMCPClient({
+          transport: {
+            type: server.transport.type,
+            url: server.transport.url,
+            headers,
+          },
+          protocolVersionDiscovery: false,
+        })
+      }
 
       const serverTools = await client.tools()
-      // prefix tool names with server name to avoid collisions
       const prefix = server.name.replace(/[^a-zA-Z0-9_]/g, "_")
       for (const [toolName, toolDef] of Object.entries(serverTools)) {
         out.tools[`${prefix}__${toolName}`] = toolDef
@@ -68,9 +89,16 @@ export async function loadMcpTools(opts: {
         userId: opts.userId,
         eventType: "mcp.server.connected",
         resourceType: "mcp_server",
-        metadata: { name: server.name, url: server.transport.url, tool_count: Object.keys(serverTools).length },
+        metadata: {
+          name: server.name,
+          url: server.transport.url,
+          transport: internalPath ? "in-memory" : server.transport.type,
+          tool_count: Object.keys(serverTools).length,
+          success: true,
+        },
       })
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "unknown"
       console.error(`[mcp] server "${server.name}" failed:`, err)
       await logAudit({
         userId: opts.userId,
@@ -78,7 +106,8 @@ export async function loadMcpTools(opts: {
         resourceType: "mcp_server",
         metadata: {
           name: server.name,
-          error: err instanceof Error ? err.message : "unknown",
+          url: server.transport.url,
+          error: errMsg,
           success: false,
         },
       })

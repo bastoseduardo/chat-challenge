@@ -68,7 +68,7 @@ export function Sidebar({ conversations, user }: SidebarProps) {
   }
 
   return (
-    <aside className="w-64 border-r flex flex-col shrink-0 bg-card">
+    <aside className="w-64 border-r flex flex-col shrink-0 bg-card min-h-0 overflow-hidden">
       <div className="p-3 border-b">
         <Button onClick={newChat} className="w-full justify-start gap-2" size="sm">
           <Plus className="w-4 h-4" />

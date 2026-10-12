@@ -15,7 +15,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const conversations = await listConversations(user.id)
 
   return (
-    <div className="flex-1 flex h-screen">
+    <div className="flex-1 flex min-h-0 overflow-hidden">
       <Sidebar
         conversations={conversations.map((c) => ({
           id: c.id,
@@ -29,7 +29,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
           avatar: user.user_metadata?.avatar_url ?? null,
         }}
       />
-      <main className="flex-1 min-w-0 flex flex-col">{children}</main>
+      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">{children}</main>
     </div>
   )
 }
