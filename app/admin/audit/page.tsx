@@ -46,7 +46,8 @@ export default async function AuditPage({
   const total = count ?? 0
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+    <div className="flex-1 overflow-y-auto">
+      <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/">
           <Button variant="ghost" size="icon">
@@ -88,39 +89,39 @@ export default async function AuditPage({
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/50">
+            <table className="w-full text-sm min-w-[900px]">
+              <thead className="border-b bg-muted/50 sticky top-0">
                 <tr>
-                  <th className="text-left px-3 py-2 font-medium">Quando</th>
-                  <th className="text-left px-3 py-2 font-medium">Evento</th>
-                  <th className="text-left px-3 py-2 font-medium">User</th>
-                  <th className="text-left px-3 py-2 font-medium">Resource</th>
+                  <th className="text-left px-3 py-2 font-medium whitespace-nowrap w-44">Quando</th>
+                  <th className="text-left px-3 py-2 font-medium whitespace-nowrap w-48">Evento</th>
+                  <th className="text-left px-3 py-2 font-medium whitespace-nowrap w-28">User</th>
+                  <th className="text-left px-3 py-2 font-medium whitespace-nowrap w-56">Resource</th>
                   <th className="text-left px-3 py-2 font-medium">Metadata</th>
                 </tr>
               </thead>
               <tbody>
                 {events.map((e) => (
-                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30 align-top">
                     <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">
                       {new Date(e.created_at).toLocaleString("pt-BR")}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <code className="text-xs">{e.event_type}</code>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-xs">
+                    <td className="px-3 py-2 whitespace-nowrap text-xs font-mono">
                       {e.user_id ? e.user_id.slice(0, 8) : "—"}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs">
                       {e.resource_type ?? "—"}
                       {e.resource_id && (
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground font-mono">
                           {" "}
                           · {e.resource_id.slice(0, 8)}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-xs max-w-md">
-                      <code className="truncate inline-block max-w-full">
+                    <td className="px-3 py-2 text-xs">
+                      <code className="block break-all text-muted-foreground">
                         {JSON.stringify(e.metadata)}
                       </code>
                     </td>
@@ -156,6 +157,7 @@ export default async function AuditPage({
             Próxima
           </Button>
         </Link>
+      </div>
       </div>
     </div>
   )
