@@ -11,5 +11,7 @@ export async function POST(request: NextRequest) {
   if (user) {
     await logAudit({ userId: user.id, eventType: "user.logout" })
   }
-  return NextResponse.redirect(new URL("/login", request.nextUrl.origin))
+  return NextResponse.redirect(new URL("/login", request.nextUrl.origin), {
+    status: 303, // See Other: converte POST → GET no browser
+  })
 }
