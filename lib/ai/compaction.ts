@@ -43,19 +43,22 @@ export async function compactIfNeeded(opts: {
   conversationId: string
   userId: string
   model: string
-}): Promise<void> {
-  const { conversationId, userId, model } = opts
+  force?: boolean
+}): Promise<{ compacted: boolean; reason?: string }> {
+  const { conversationId, userId, model, force } = opts
 
   const [conv] = await db
     .select()
     .from(conversations)
     .where(eq(conversations.id, conversationId))
     .limit(1)
-  if (!conv) return
+  if (!conv) return { compacted: false, reason: "conversation_not_found" }
 
   const totalTokens = conv.totalInputTokens + conv.totalOutputTokens
   const limit = ctxWindow(model)
-  if (totalTokens < threshold() * limit) return
+  if (!force && totalTokens < threshold() * limit) {
+    return { compacted: false, reason: "below_threshold" }
+  }
 
   // Pega msgs desde o último summary
   const [lastSummary] = await db
@@ -72,9 +75,13 @@ export async function compactIfNeeded(opts: {
     .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since)))
     .orderBy(asc(messages.createdAt))
 
-  if (windowRows.length < KEEP_RECENT + 4) return
+  const minToSummarize = force ? 2 : 4
+  if (windowRows.length < KEEP_RECENT + minToSummarize) {
+    return { compacted: false, reason: "not_enough_messages" }
+  }
 
-  const toSummarize = windowRows.slice(0, windowRows.length - KEEP_RECENT)
+  const keepRecent = force ? Math.min(KEEP_RECENT, Math.max(2, windowRows.length - 2)) : KEEP_RECENT
+  const toSummarize = windowRows.slice(0, windowRows.length - keepRecent)
   const prompt = buildSummaryPrompt(toSummarize)
 
   const result = await generateText({
@@ -122,8 +129,11 @@ export async function compactIfNeeded(opts: {
     metadata: {
       messages_summarized: toSummarize.length,
       tokens_before: totalTokens,
+      forced: !!force,
     },
   })
+
+  return { compacted: true }
 }
 
 function buildSummaryPrompt(

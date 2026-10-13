@@ -5,7 +5,6 @@ import { DefaultChatTransport, type UIMessage } from "ai"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { ArrowUp, Share2, Loader2, Paperclip } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -14,6 +13,7 @@ import { ShareDialog } from "./share-dialog"
 import { AttachmentTiles } from "./attachment-tiles"
 import { useAttachments } from "./use-attachments"
 import { QuotaDialog } from "./quota-dialog"
+import { ContextIndicator } from "./context-indicator"
 
 const SUGGESTIONS = [
   "Me explica o que é RLS no PostgreSQL",
@@ -26,6 +26,7 @@ interface ChatViewProps {
   conversationId: string
   title: string
   compactionCount: number
+  totalTokens: number
   initialMessages: UIMessage[]
 }
 
@@ -33,6 +34,7 @@ export function ChatView({
   conversationId,
   title,
   compactionCount,
+  totalTokens,
   initialMessages,
 }: ChatViewProps) {
   const router = useRouter()
@@ -64,6 +66,8 @@ export function ChatView({
         titledRef.current = true
         void generateTitle(message)
       }
+      // atualiza totals pro ContextIndicator refletir o novo uso
+      router.refresh()
     },
   })
 
@@ -134,19 +138,19 @@ export function ChatView({
 
   return (
     <>
-      <header className="border-b px-6 h-14 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="font-semibold truncate">{title}</h1>
-          {compactionCount > 0 && (
-            <Badge variant="secondary" title="Histórico comprimido">
-              Comprimido {compactionCount}x
-            </Badge>
-          )}
+      <header className="border-b px-6 h-14 flex items-center justify-between gap-3 shrink-0">
+        <h1 className="font-semibold truncate flex-1 min-w-0">{title}</h1>
+        <div className="flex items-center gap-2 shrink-0">
+          <ContextIndicator
+            conversationId={conversationId}
+            initialTotalTokens={totalTokens}
+            initialCompactionCount={compactionCount}
+          />
+          <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
+            <Share2 className="w-4 h-4 mr-2" />
+            Compartilhar
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
-          <Share2 className="w-4 h-4 mr-2" />
-          Compartilhar
-        </Button>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto">

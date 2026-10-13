@@ -28,6 +28,7 @@ export default async function ConversationPage({
       conversationId={conv.id}
       title={conv.title}
       compactionCount={conv.compactionCount}
+      totalTokens={conv.totalInputTokens + conv.totalOutputTokens}
       initialMessages={initialMessages}
     />
   )
