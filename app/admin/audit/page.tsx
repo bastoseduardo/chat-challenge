@@ -46,8 +46,7 @@ export default async function AuditPage({
   const total = count ?? 0
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+    <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/">
           <Button variant="ghost" size="icon">
@@ -157,7 +156,6 @@ export default async function AuditPage({
             Próxima
           </Button>
         </Link>
-      </div>
       </div>
     </div>
   )

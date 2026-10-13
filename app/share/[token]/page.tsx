@@ -31,7 +31,7 @@ export default async function SharePage({
   const { conversation, messages } = data
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <header className="border-b px-6 h-14 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="font-semibold">{conversation.title}</h1>

@@ -24,24 +24,22 @@ export default async function SettingsPage() {
     .limit(1)
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-semibold">Configurações</h1>
-        </div>
-
-        <SettingsForm
-          initial={{
-            enabledTools: settings?.enabledTools ?? ["web_search", "web_scrape", "get_current_time"],
-            mcpConfig: JSON.stringify(settings?.mcpConfig ?? {}, null, 2),
-          }}
-        />
+    <div className="w-full max-w-3xl mx-auto px-6 py-8 space-y-6">
+      <div className="flex items-center gap-3">
+        <Link href="/">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        </Link>
+        <h1 className="text-2xl font-semibold">Configurações</h1>
       </div>
+
+      <SettingsForm
+        initial={{
+          enabledTools: settings?.enabledTools ?? ["web_search", "web_scrape", "get_current_time"],
+          mcpConfig: JSON.stringify(settings?.mcpConfig ?? {}, null, 2),
+        }}
+      />
     </div>
   )
 }

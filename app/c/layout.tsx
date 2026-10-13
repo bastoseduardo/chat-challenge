@@ -15,7 +15,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const conversations = await listConversations(user.id)
 
   return (
-    <div className="flex-1 flex min-h-0 overflow-hidden">
+    <div className="h-dvh flex overflow-hidden">
       <Sidebar
         conversations={conversations.map((c) => ({
           id: c.id,
