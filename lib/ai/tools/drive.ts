@@ -26,23 +26,61 @@ export function buildDriveTools(opts: { providerToken: string | null }): ToolSet
   if (!opts.providerToken) return {}
   const token = opts.providerToken
 
+  const FOLDER_MIME = "application/vnd.google-apps.folder"
+
+  function labelKind(mimeType: string): string {
+    if (mimeType === FOLDER_MIME) return "folder"
+    if (mimeType === "application/vnd.google-apps.document") return "google-doc"
+    if (mimeType === "application/vnd.google-apps.spreadsheet") return "google-sheet"
+    if (mimeType === "application/vnd.google-apps.presentation") return "google-slides"
+    if (mimeType === "application/pdf") return "pdf"
+    if (mimeType.startsWith("image/")) return "image"
+    if (mimeType.startsWith("text/")) return "text"
+    return mimeType
+  }
+
   const searchFiles = tool({
     description:
-      "Busca arquivos no Google Drive do usuário. Retorna até 10 resultados com id, nome e tipo.",
+      "Busca ou lista arquivos e pastas no Google Drive do usuário. " +
+      "Use `query` para busca por nome, ou `folder_id` para listar conteúdo de uma pasta. " +
+      "Sem argumentos retorna os arquivos modificados mais recentemente. " +
+      "Resultados incluem pastas (kind='folder') — use o id da pasta como folder_id para explorar dentro.",
     inputSchema: z.object({
       query: z
         .string()
+        .optional()
         .describe(
-          "Termo de busca. Será usado como 'name contains \"<query>\"' na API do Drive."
+          "Opcional. Termo de busca por nome ('name contains'). Omita para listar recentes."
         ),
-      max_results: z.number().int().min(1).max(20).optional().default(10),
+      folder_id: z
+        .string()
+        .optional()
+        .describe(
+          "Opcional. Lista arquivos filhos desta pasta. Mutuamente exclusivo com `query`."
+        ),
+      max_results: z.number().int().min(1).max(50).optional().default(20),
+      only_files: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Se true, exclui pastas dos resultados."),
     }),
-    execute: async ({ query, max_results }) => {
+    execute: async ({ query, folder_id, max_results, only_files }) => {
       try {
-        const q = encodeURIComponent(`name contains '${query.replace(/'/g, "\\'")}' and trashed = false`)
+        const clauses: string[] = ["trashed = false"]
+        if (folder_id) {
+          clauses.push(`'${folder_id.replace(/'/g, "\\'")}' in parents`)
+        } else if (query) {
+          clauses.push(`name contains '${query.replace(/'/g, "\\'")}'`)
+        }
+        if (only_files) {
+          clauses.push(`mimeType != '${FOLDER_MIME}'`)
+        }
+        const q = encodeURIComponent(clauses.join(" and "))
         const url =
           `https://www.googleapis.com/drive/v3/files?q=${q}` +
           `&pageSize=${max_results}` +
+          `&orderBy=modifiedTime desc` +
           `&fields=files(id,name,mimeType,modifiedTime)`
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -54,12 +92,14 @@ export function buildDriveTools(opts: { providerToken: string | null }): ToolSet
         }
         const data = (await res.json()) as { files?: DriveFile[] }
         return {
-          query,
+          query: query ?? null,
+          folder_id: folder_id ?? null,
           files:
             data.files?.map((f) => ({
               id: f.id,
               name: f.name,
               mimeType: f.mimeType,
+              kind: labelKind(f.mimeType),
               modifiedTime: f.modifiedTime,
             })) ?? [],
         }
