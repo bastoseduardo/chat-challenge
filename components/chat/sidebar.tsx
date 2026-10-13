@@ -12,9 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, MoreHorizontal, Trash2, Pencil, LogOut, Settings, BarChart3 } from "lucide-react"
+import { Plus, MoreHorizontal, Trash2, Pencil, LogOut, Settings, BarChart3, MessageSquarePlus } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/theme/toggle"
 
 interface Conversation {
   id: string
@@ -79,9 +80,12 @@ export function Sidebar({ conversations, user }: SidebarProps) {
       <ScrollArea className="flex-1">
         <nav className="p-2 space-y-0.5">
           {conversations.length === 0 && (
-            <p className="text-xs text-muted-foreground px-2 py-4 text-center">
-              Nenhuma conversa ainda
-            </p>
+            <div className="px-3 py-6 text-center space-y-3">
+              <MessageSquarePlus className="w-8 h-8 mx-auto text-muted-foreground opacity-50" />
+              <p className="text-xs text-muted-foreground">
+                Nenhuma conversa ainda. Clique em &quot;Nova conversa&quot; pra começar.
+              </p>
+            </div>
           )}
           {conversations.map((c) => {
             const active = pathname === `/c/${c.id}`
@@ -174,6 +178,7 @@ export function Sidebar({ conversations, user }: SidebarProps) {
             <div className="truncate font-medium">{user.name}</div>
             <div className="truncate text-muted-foreground">{user.email}</div>
           </div>
+          <ThemeToggle />
           <form action="/auth/signout" method="post">
             <button
               type="submit"

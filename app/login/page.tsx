@@ -16,6 +16,7 @@ export default function LoginPage() {
       provider: "google",
       options: {
         redirectTo: `${origin}/auth/callback`,
+        scopes: "https://www.googleapis.com/auth/drive.readonly",
       },
     })
   }

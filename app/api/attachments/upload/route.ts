@@ -5,6 +5,7 @@ import { createSignedUploadUrl, detectKind, ATTACHMENT_LIMITS } from "@/lib/stor
 import { db } from "@/lib/db/client"
 import { conversations } from "@/lib/db/schema"
 import { and, eq } from "drizzle-orm"
+import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
 
 const bodySchema = z.object({
   conversationId: z.string().uuid(),
@@ -19,6 +20,19 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+
+  const ip = getClientIp(req)
+  try {
+    await assertRateLimit({ key: `upload:${ip}`, limit: 20, windowMs: 60_000 })
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "rate_limited", retryAfter: err.retryAfterSec },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSec) } }
+      )
+    }
+    throw err
+  }
 
   const parsed = bodySchema.safeParse(await req.json())
   if (!parsed.success) {

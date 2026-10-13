@@ -177,3 +177,9 @@ export const userNotes = pgTable("user_notes", {
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })
+
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  key: text("key").primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+  count: integer("count").notNull().default(0),
+})

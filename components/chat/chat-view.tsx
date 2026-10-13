@@ -13,6 +13,14 @@ import { MessageBubble } from "./message-bubble"
 import { ShareDialog } from "./share-dialog"
 import { AttachmentTiles } from "./attachment-tiles"
 import { useAttachments } from "./use-attachments"
+import { QuotaDialog } from "./quota-dialog"
+
+const SUGGESTIONS = [
+  "Me explica o que é RLS no PostgreSQL",
+  "Quais foram as notícias de IA mais relevantes essa semana?",
+  "Salva nas minhas notas: terminar o desafio técnico",
+  "Que horas são agora em Lisboa?",
+]
 
 interface ChatViewProps {
   conversationId: string
@@ -30,6 +38,7 @@ export function ChatView({
   const router = useRouter()
   const [input, setInput] = useState("")
   const [shareOpen, setShareOpen] = useState(false)
+  const [quotaInfo, setQuotaInfo] = useState<{ scope: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const titledRef = useRef(initialMessages.length > 0)
@@ -112,10 +121,13 @@ export function ChatView({
   useEffect(() => {
     if (error) {
       const anyErr = error as unknown as { message?: string }
-      if (anyErr?.message?.toLowerCase().includes("quota")) {
-        toast.error("Limite diário de tokens atingido.")
+      const msg = anyErr?.message ?? ""
+      const lower = msg.toLowerCase()
+      if (lower.includes("quota") || lower.includes("429")) {
+        const scope = lower.includes("global") ? "global" : "user"
+        setQuotaInfo({ scope })
       } else {
-        toast.error(anyErr?.message ?? "Erro na requisição")
+        toast.error(msg || "Erro na requisição")
       }
     }
   }, [error])
@@ -140,11 +152,25 @@ export function ChatView({
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
           {messages.length === 0 && (
-            <div className="text-center text-muted-foreground py-16">
-              <p className="text-lg">Comece uma conversa</p>
-              <p className="text-sm mt-2">
-                Envie mensagens, anexos (imagens/PDF) e use tools de web search.
-              </p>
+            <div className="py-10 space-y-8">
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold mb-2">Comece uma conversa</h2>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  Envie mensagens, anexe imagens ou PDFs, e use tools como web search e MCP.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setInput(s)}
+                    className="text-left px-3 py-2 rounded-lg border bg-card hover:bg-accent text-sm transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((m) => (
@@ -214,6 +240,11 @@ export function ChatView({
         conversationId={conversationId}
         open={shareOpen}
         onOpenChange={setShareOpen}
+      />
+      <QuotaDialog
+        open={!!quotaInfo}
+        scope={quotaInfo?.scope ?? "user"}
+        onOpenChange={(open) => !open && setQuotaInfo(null)}
       />
     </>
   )

@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
 import { cn } from "@/lib/utils"
+import { ToolCallCard } from "./tool-call-card"
 import "highlight.js/styles/github-dark.css"
 
 interface MessageBubbleProps {
@@ -66,32 +67,29 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             )
           }
           if (part.type?.startsWith("tool-")) {
-            const toolPart = part as {
-              type: string
+            const toolName = part.type.replace("tool-", "")
+            const toolPart = part as unknown as {
+              state?: string
               input?: unknown
               output?: unknown
-              state?: string
+              errorText?: string
             }
-            const toolName = part.type.replace("tool-", "")
+            return <ToolCallCard key={i} toolName={toolName} part={toolPart} />
+          }
+          if (part.type === "dynamic-tool") {
+            const dyn = part as unknown as {
+              toolName?: string
+              state?: string
+              input?: unknown
+              output?: unknown
+              errorText?: string
+            }
             return (
-              <div
+              <ToolCallCard
                 key={i}
-                className="rounded border bg-background/60 px-3 py-2 text-xs font-mono"
-              >
-                <div className="font-semibold mb-1">
-                  🔧 {toolName}
-                  {toolPart.state && (
-                    <span className="ml-2 text-muted-foreground font-normal">
-                      {toolPart.state}
-                    </span>
-                  )}
-                </div>
-                {toolPart.input ? (
-                  <pre className="whitespace-pre-wrap text-muted-foreground">
-                    {JSON.stringify(toolPart.input, null, 2).slice(0, 300)}
-                  </pre>
-                ) : null}
-              </div>
+                toolName={dyn.toolName ?? "tool"}
+                part={dyn}
+              />
             )
           }
           return null

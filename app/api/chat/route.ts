@@ -16,6 +16,7 @@ import { persistToolInvocations } from "@/lib/ai/tool-persist"
 import { buildContext } from "@/lib/ai/history"
 import { scheduleCompaction } from "@/lib/ai/compaction"
 import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
+import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
 
 export const maxDuration = 60
 
@@ -39,6 +40,24 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+
+  const ip = getClientIp(req)
+  try {
+    await assertRateLimit({ key: `chat:${ip}`, limit: 10, windowMs: 60_000 })
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      await logAudit({
+        userId: user.id,
+        eventType: "quota.exceeded",
+        metadata: { scope: "ip_rate_limit", endpoint: "chat", ip },
+      })
+      return NextResponse.json(
+        { error: "rate_limited", retryAfter: err.retryAfterSec },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSec) } }
+      )
+    }
+    throw err
+  }
 
   const body = (await req.json()) as ChatRequestBody
   const { conversationId, messages: uiMessages, attachments: incomingAttachments = [] } = body
@@ -67,6 +86,10 @@ export async function POST(req: NextRequest) {
     "web_scrape",
     "get_current_time",
   ]) as BuiltinToolName[]
+
+  // Pega o provider_token do Google OAuth pra Drive (se o scope foi concedido)
+  const { data: { session } } = await supabase.auth.getSession()
+  const driveToken = session?.provider_token ?? null
 
   const model = conv.model || DEFAULT_MODEL
   const estimatedInput = estimateMessagesTokens(uiMessages) + incomingAttachments.length * 1500
@@ -166,7 +189,7 @@ export async function POST(req: NextRequest) {
   // Replace with persisted context when available (keeps the system/summary message included).
   const historyMessages = persistedContext.length > 0 ? persistedContext : modelMessages
 
-  const builtinTools = getBuiltinTools(enabledTools)
+  const builtinTools = getBuiltinTools({ enabled: enabledTools, driveToken })
   const mcp = await loadMcpTools({
     userId: user.id,
     mcpConfig: settings?.mcpConfig,

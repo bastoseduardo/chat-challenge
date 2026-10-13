@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 
 const ALL_TOOLS = [
-  { id: "web_search", label: "Web search", description: "Pesquisa na web via Tavily" },
-  { id: "web_scrape", label: "Web scrape", description: "Lê URLs via Jina Reader" },
-  { id: "get_current_time", label: "Horário atual", description: "Retorna data e hora" },
+  { id: "web_search", label: "Web search", description: "Pesquisa na web via Tavily", requiresConsent: false },
+  { id: "web_scrape", label: "Web scrape", description: "Lê URLs via Jina Reader", requiresConsent: false },
+  { id: "get_current_time", label: "Horário atual", description: "Retorna data e hora", requiresConsent: false },
+  { id: "drive_search_files", label: "Google Drive · Buscar", description: "Lista arquivos do seu Drive", requiresConsent: true },
+  { id: "drive_read_file", label: "Google Drive · Ler", description: "Lê conteúdo de Docs/Sheets/texto", requiresConsent: true },
 ]
 
 interface Props {
@@ -58,9 +60,16 @@ export function SettingsForm({ initial }: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           {ALL_TOOLS.map((t) => (
-            <div key={t.id} className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">{t.label}</div>
+            <div key={t.id} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-medium text-sm flex items-center gap-2">
+                  {t.label}
+                  {t.requiresConsent && (
+                    <span className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded">
+                      requer consentimento
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">{t.description}</div>
               </div>
               <Switch
@@ -69,6 +78,11 @@ export function SettingsForm({ initial }: Props) {
               />
             </div>
           ))}
+          <p className="text-xs text-muted-foreground pt-2 border-t">
+            As tools do Google Drive precisam de scope <code>drive.readonly</code>.
+            Se o toggle estiver ligado mas a tool falhar, faça logout e login novamente
+            para reautorizar.
+          </p>
         </CardContent>
       </Card>
 
