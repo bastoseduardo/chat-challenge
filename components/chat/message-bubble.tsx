@@ -6,20 +6,44 @@ import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
 import { cn } from "@/lib/utils"
 import { ToolCallCard } from "./tool-call-card"
+import { Copy, RefreshCw, Check } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
 import "highlight.js/styles/github-dark.css"
 
 interface MessageBubbleProps {
   message: UIMessage
+  isLast?: boolean
+  onRegenerate?: () => void
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+function extractMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("\n")
+}
+
+export function MessageBubble({ message, isLast, onRegenerate }: MessageBubbleProps) {
   const isUser = message.role === "user"
+  const [copied, setCopied] = useState(false)
+
+  async function copyText() {
+    const text = extractMessageText(message)
+    if (!text) return
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    toast.success("Copiado")
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  const canRegenerate = !isUser && isLast && onRegenerate
 
   return (
-    <div className={cn("flex gap-3", isUser && "justify-end")}>
+    <div className={cn("group flex gap-3", isUser && "justify-end")}>
       <div
         className={cn(
-          "rounded-lg px-4 py-3 max-w-[85%] space-y-2",
+          "rounded-lg px-4 py-3 max-w-[85%] space-y-2 relative",
           isUser ? "bg-primary text-primary-foreground" : "bg-muted"
         )}
       >
@@ -94,6 +118,32 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           }
           return null
         })}
+        {!isUser && (
+          <div className="flex items-center gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={copyText}
+              className="p-1 rounded hover:bg-background/60 text-muted-foreground"
+              title="Copiar"
+            >
+              {copied ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+            </button>
+            {canRegenerate && (
+              <button
+                type="button"
+                onClick={onRegenerate}
+                className="p-1 rounded hover:bg-background/60 text-muted-foreground"
+                title="Regenerar resposta"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -45,6 +45,21 @@ export async function renameConversation(id: string, userId: string, title: stri
     .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
 }
 
+export async function updateConversation(
+  id: string,
+  userId: string,
+  patch: { title?: string; model?: string; systemPrompt?: string | null }
+) {
+  const set: Record<string, unknown> = { updatedAt: new Date() }
+  if (patch.title !== undefined) set.title = patch.title
+  if (patch.model !== undefined) set.model = patch.model
+  if (patch.systemPrompt !== undefined) set.systemPrompt = patch.systemPrompt
+  await db
+    .update(conversations)
+    .set(set)
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
+}
+
 export async function softDeleteConversation(id: string, userId: string) {
   await db
     .update(conversations)

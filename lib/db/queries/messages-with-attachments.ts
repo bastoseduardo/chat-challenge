@@ -1,5 +1,5 @@
 import { db } from "@/lib/db/client"
-import { messages, attachments } from "@/lib/db/schema"
+import { messages, attachments, toolInvocations } from "@/lib/db/schema"
 import { asc, eq } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import type { UIMessage } from "ai"
@@ -13,8 +13,21 @@ type FilePart = {
 
 type TextPart = { type: "text"; text: string }
 
+type DynamicToolPart = {
+  type: "dynamic-tool"
+  toolCallId: string
+  toolName: string
+  state: "output-available" | "output-error"
+  input: unknown
+  output?: unknown
+  errorText?: string
+}
+
+type Part = TextPart | FilePart | DynamicToolPart
+
 /**
- * Carrega mensagens + anexos de uma conversa pro cliente, incluindo signed URLs.
+ * Carrega mensagens + anexos + tool invocations de uma conversa pro cliente.
+ * Reconstrói parts no formato UIMessage, incluindo signed URLs e tool call cards.
  */
 export async function listMessagesWithAttachments(
   conversationId: string
@@ -29,21 +42,23 @@ export async function listMessagesWithAttachments(
 
   for (const row of rows) {
     if (row.isSummary) continue
-    const parts: Array<TextPart | FilePart> = Array.isArray(row.content)
-      ? (row.content as Array<TextPart | FilePart>).filter(
-          (p) => p.type === "text" || p.type === "file"
-        )
-      : []
+    const basePartsRaw = Array.isArray(row.content) ? (row.content as Part[]) : []
+    const textParts: TextPart[] = basePartsRaw.filter(
+      (p): p is TextPart => p.type === "text"
+    )
+    const fileParts: FilePart[] = basePartsRaw.filter(
+      (p): p is FilePart => p.type === "file"
+    )
 
+    // Anexos (user messages)
     const atts = await db
       .select()
       .from(attachments)
       .where(eq(attachments.messageId, row.id))
-
     for (const a of atts) {
       try {
         const url = await createSignedDownloadUrl(a.storagePath)
-        parts.push({
+        fileParts.push({
           type: "file",
           mediaType: a.mimeType,
           url,
@@ -53,6 +68,28 @@ export async function listMessagesWithAttachments(
         console.error("[messages] attachment URL failed:", err)
       }
     }
+
+    // Tool invocations (assistant messages) — ordena por criação
+    let toolParts: DynamicToolPart[] = []
+    if (row.role === "assistant") {
+      const invs = await db
+        .select()
+        .from(toolInvocations)
+        .where(eq(toolInvocations.messageId, row.id))
+        .orderBy(asc(toolInvocations.createdAt))
+      toolParts = invs.map((inv) => ({
+        type: "dynamic-tool" as const,
+        toolCallId: inv.id,
+        toolName: inv.toolName,
+        state: inv.error ? "output-error" : "output-available",
+        input: inv.args,
+        output: inv.result ?? undefined,
+        errorText: inv.error ?? undefined,
+      }))
+    }
+
+    // Ordem na thread: file parts primeiro, depois tool calls, depois text (resposta final)
+    const parts: Part[] = [...fileParts, ...toolParts, ...textParts]
 
     result.push({
       id: row.id,

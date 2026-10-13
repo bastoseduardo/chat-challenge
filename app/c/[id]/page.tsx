@@ -29,6 +29,8 @@ export default async function ConversationPage({
       title={conv.title}
       compactionCount={conv.compactionCount}
       totalTokens={conv.totalInputTokens + conv.totalOutputTokens}
+      model={conv.model}
+      systemPrompt={conv.systemPrompt ?? null}
       initialMessages={initialMessages}
     />
   )

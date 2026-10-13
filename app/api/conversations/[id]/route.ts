@@ -4,10 +4,11 @@ import { createClient } from "@/lib/supabase/server"
 import {
   getConversation,
   listMessages,
-  renameConversation,
   softDeleteConversation,
+  updateConversation,
 } from "@/lib/db/queries/conversations"
 import { logAudit } from "@/lib/audit/log"
+import { MODELS } from "@/lib/ai/pricing"
 
 export async function GET(
   _req: NextRequest,
@@ -27,7 +28,11 @@ export async function GET(
   return NextResponse.json({ conversation: conv, messages: msgs })
 }
 
-const patchSchema = z.object({ title: z.string().min(1).max(140) })
+const patchSchema = z.object({
+  title: z.string().min(1).max(140).optional(),
+  model: z.string().optional(),
+  systemPrompt: z.string().max(10_000).nullable().optional(),
+})
 
 export async function PATCH(
   req: NextRequest,
@@ -40,11 +45,15 @@ export async function PATCH(
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
 
-  const body = await req.json()
-  const parsed = patchSchema.safeParse(body)
+  const parsed = patchSchema.safeParse(await req.json())
   if (!parsed.success) return NextResponse.json({ error: "invalid" }, { status: 400 })
 
-  await renameConversation(id, user.id, parsed.data.title)
+  // valida modelo
+  if (parsed.data.model && !MODELS.some((m) => m.id === parsed.data.model)) {
+    return NextResponse.json({ error: "invalid_model" }, { status: 400 })
+  }
+
+  await updateConversation(id, user.id, parsed.data)
   return NextResponse.json({ ok: true })
 }
 

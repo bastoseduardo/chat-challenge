@@ -20,6 +20,15 @@ interface SharedRow {
 
 type TextPart = { type: "text"; text: string }
 type FilePart = { type: "file"; mediaType: string; url: string; filename?: string }
+type DynamicToolPart = {
+  type: "dynamic-tool"
+  toolCallId: string
+  toolName: string
+  state: "output-available" | "output-error"
+  input: unknown
+  output?: unknown
+  errorText?: string
+}
 
 export async function loadSharedConversation(
   token: string
@@ -32,9 +41,29 @@ export async function loadSharedConversation(
   const shared = data as SharedRow | null
   if (!shared) return null
 
-  // Fetch attachments for all messages in bulk
-  const messageIds = shared.messages.filter((m) => !m.is_summary).map((m) => m.id)
-  let attachmentsByMessage = new Map<string, Array<{ storage_path: string; mime_type: string; original_name: string | null }>>()
+  const visibleMessages = shared.messages.filter((m) => !m.is_summary)
+  const messageIds = visibleMessages.map((m) => m.id)
+  const assistantIds = visibleMessages
+    .filter((m) => m.role === "assistant")
+    .map((m) => m.id)
+
+  // Fetch anexos + tool invocations em bulk
+  const attachmentsByMessage = new Map<
+    string,
+    Array<{ storage_path: string; mime_type: string; original_name: string | null }>
+  >()
+  const toolsByMessage = new Map<
+    string,
+    Array<{
+      id: string
+      tool_name: string
+      args: unknown
+      result: unknown
+      error: string | null
+      created_at: string
+    }>
+  >()
+
   if (messageIds.length > 0) {
     const { data: atts } = await supabase
       .from("attachments")
@@ -51,19 +80,33 @@ export async function loadSharedConversation(
     }
   }
 
+  if (assistantIds.length > 0) {
+    const { data: invs } = await supabase
+      .from("tool_invocations")
+      .select("id, message_id, tool_name, args, result, error, created_at")
+      .in("message_id", assistantIds)
+      .order("created_at", { ascending: true })
+    for (const inv of invs ?? []) {
+      const list = toolsByMessage.get(inv.message_id) ?? []
+      list.push(inv)
+      toolsByMessage.set(inv.message_id, list)
+    }
+  }
+
   const messages: UIMessage[] = []
-  for (const m of shared.messages) {
-    if (m.is_summary) continue
-    const parts: Array<TextPart | FilePart> = Array.isArray(m.content)
-      ? (m.content as Array<TextPart | FilePart>).filter(
-          (p) => p.type === "text" || p.type === "file"
-        )
+  for (const m of visibleMessages) {
+    const basePartsRaw = Array.isArray(m.content)
+      ? (m.content as Array<TextPart | FilePart>)
       : []
-    const atts = attachmentsByMessage.get(m.id) ?? []
-    for (const a of atts) {
+    const textParts = basePartsRaw.filter((p): p is TextPart => p.type === "text")
+    const fileParts: FilePart[] = basePartsRaw.filter(
+      (p): p is FilePart => p.type === "file"
+    )
+
+    for (const a of attachmentsByMessage.get(m.id) ?? []) {
       try {
         const url = await createSignedDownloadUrl(a.storage_path)
-        parts.push({
+        fileParts.push({
           type: "file",
           mediaType: a.mime_type,
           url,
@@ -73,6 +116,20 @@ export async function loadSharedConversation(
         console.error("[share] signed URL failed:", err)
       }
     }
+
+    const toolParts: DynamicToolPart[] = (toolsByMessage.get(m.id) ?? []).map(
+      (inv) => ({
+        type: "dynamic-tool",
+        toolCallId: inv.id,
+        toolName: inv.tool_name,
+        state: inv.error ? "output-error" : "output-available",
+        input: inv.args,
+        output: inv.result ?? undefined,
+        errorText: inv.error ?? undefined,
+      })
+    )
+
+    const parts = [...fileParts, ...toolParts, ...textParts]
     messages.push({
       id: m.id,
       role: m.role as UIMessage["role"],

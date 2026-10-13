@@ -5,7 +5,7 @@ import { DefaultChatTransport, type UIMessage } from "ai"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowUp, Share2, Loader2, Paperclip } from "lucide-react"
+import { ArrowUp, Share2, Loader2, Paperclip, Download } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { MessageBubble } from "./message-bubble"
@@ -14,6 +14,7 @@ import { AttachmentTiles } from "./attachment-tiles"
 import { useAttachments } from "./use-attachments"
 import { QuotaDialog } from "./quota-dialog"
 import { ContextIndicator } from "./context-indicator"
+import { ConversationSettings } from "./conversation-settings"
 
 const SUGGESTIONS = [
   "Me explica o que é RLS no PostgreSQL",
@@ -27,6 +28,8 @@ interface ChatViewProps {
   title: string
   compactionCount: number
   totalTokens: number
+  model: string
+  systemPrompt: string | null
   initialMessages: UIMessage[]
 }
 
@@ -35,6 +38,8 @@ export function ChatView({
   title,
   compactionCount,
   totalTokens,
+  model,
+  systemPrompt,
   initialMessages,
 }: ChatViewProps) {
   const router = useRouter()
@@ -46,17 +51,20 @@ export function ChatView({
   const titledRef = useRef(initialMessages.length > 0)
   const attach = useAttachments(conversationId)
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, regenerate, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: "/api/chat",
       prepareSendMessagesRequest({ messages, body }) {
+        const lastMessage = messages[messages.length - 1]
         return {
           body: {
             conversationId,
             messages,
             attachments: (body as { attachments?: unknown })?.attachments ?? [],
+            // id da última mensagem do user → idempotência server-side
+            clientMessageId: lastMessage?.id,
           },
         }
       },
@@ -140,12 +148,26 @@ export function ChatView({
     <>
       <header className="border-b px-6 h-14 flex items-center justify-between gap-3 shrink-0">
         <h1 className="font-semibold truncate flex-1 min-w-0">{title}</h1>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <ContextIndicator
             conversationId={conversationId}
             initialTotalTokens={totalTokens}
             initialCompactionCount={compactionCount}
           />
+          <ConversationSettings
+            conversationId={conversationId}
+            initialModel={model}
+            initialSystemPrompt={systemPrompt}
+          />
+          <a
+            href={`/api/conversations/${conversationId}/export?format=md`}
+            download
+            title="Exportar como Markdown"
+          >
+            <Button variant="ghost" size="icon" asChild>
+              <span><Download className="w-4 h-4" /></span>
+            </Button>
+          </a>
           <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
             <Share2 className="w-4 h-4 mr-2" />
             Compartilhar
@@ -177,8 +199,13 @@ export function ChatView({
               </div>
             </div>
           )}
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+          {messages.map((m, idx) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              isLast={idx === messages.length - 1}
+              onRegenerate={() => regenerate()}
+            />
           ))}
           {isLoading && messages[messages.length - 1]?.role === "user" && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

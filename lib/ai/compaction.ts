@@ -92,6 +92,16 @@ export async function compactIfNeeded(opts: {
   const summaryText = result.text.trim()
   const cutoff = toSummarize[toSummarize.length - 1].id
 
+  // Novo baseline: o summary + últimas N mensagens continuam no contexto após a compactação.
+  // Estimamos tokens via chars/4 pra barra de contexto não mentir mostrando 0%.
+  const summaryTokens = Math.ceil(summaryText.length / 4) + 50
+  const recentRows = windowRows.slice(windowRows.length - keepRecent)
+  const recentTokens = recentRows.reduce((acc, m) => {
+    const text = extractText(m.content)
+    return acc + Math.ceil(text.length / 4) + (m.inputTokens ?? 0) + (m.outputTokens ?? 0)
+  }, 0)
+  const newBaseline = summaryTokens + recentTokens
+
   await db.transaction(async (tx) => {
     await tx.insert(messages).values({
       conversationId,
@@ -104,7 +114,7 @@ export async function compactIfNeeded(opts: {
       .update(conversations)
       .set({
         compactionCount: sql`${conversations.compactionCount} + 1`,
-        totalInputTokens: 0,
+        totalInputTokens: newBaseline,
         totalOutputTokens: 0,
       })
       .where(eq(conversations.id, conversationId))

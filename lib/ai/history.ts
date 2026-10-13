@@ -1,7 +1,7 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments as attachmentsTable } from "@/lib/db/schema"
 import { and, eq, gt, isNotNull, desc, asc } from "drizzle-orm"
-import { downloadAttachment } from "@/lib/storage/attachments"
+import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import type { ModelMessage } from "ai"
 
 /**
@@ -54,15 +54,16 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
         .where(and(eq(attachmentsTable.messageId, row.id), isNotNull(attachmentsTable.storagePath)))
       for (const a of atts) {
         try {
-          const { data, mimeType } = await downloadAttachment(a.storagePath)
+          // Passa signed URL (não baixa bytes aqui) — Anthropic busca direto.
+          const url = await createSignedDownloadUrl(a.storagePath)
           content.push({
             type: "file",
-            data: Buffer.from(data),
-            mediaType: mimeType || a.mimeType,
+            data: url,
+            mediaType: a.mimeType,
             filename: a.originalName ?? undefined,
           })
         } catch (err) {
-          console.error("[history] attachment load failed:", err)
+          console.error("[history] attachment URL failed:", err)
         }
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,6 +72,19 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
       out.push({ role: "assistant", content: text })
     }
     // system/tool rows are skipped — tool invocations rebuilt from args/output
+  }
+
+  // Prompt caching da Anthropic: marca a última mensagem estável como cache boundary.
+  // Tudo antes dela é cacheado (até 1h), bate ~90% desconto em cache hits.
+  // Usamos a penúltima pra evitar invalidar o cache no stream atual (a última ainda está "quente").
+  if (out.length >= 2) {
+    const anchor = out[out.length - 2] as ModelMessage & {
+      providerOptions?: Record<string, unknown>
+    }
+    anchor.providerOptions = {
+      ...(anchor.providerOptions ?? {}),
+      anthropic: { cacheControl: { type: "ephemeral" } },
+    }
   }
 
   return out

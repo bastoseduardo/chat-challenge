@@ -1,16 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { streamText, convertToModelMessages, type UIMessage, type ModelMessage } from "ai"
+import { streamText, type UIMessage } from "ai"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages, attachments as attachmentsTable, userSettings } from "@/lib/db/schema"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { getModel } from "@/lib/ai/client"
 import { DEFAULT_MODEL } from "@/lib/ai/pricing"
 import { assertWithinCaps, QuotaError } from "@/lib/usage/caps"
 import { recordUsage } from "@/lib/usage/counter"
 import { logAudit } from "@/lib/audit/log"
 import { estimateMessagesTokens } from "@/lib/ai/tokens"
-import { downloadAttachment } from "@/lib/storage/attachments"
 import { getBuiltinTools, type BuiltinToolName } from "@/lib/ai/tools"
 import { persistToolInvocations } from "@/lib/ai/tool-persist"
 import { buildContext } from "@/lib/ai/history"
@@ -32,6 +31,7 @@ interface ChatRequestBody {
   conversationId: string
   messages: UIMessage[]
   attachments?: AttachmentDescriptor[]
+  clientMessageId?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json()) as ChatRequestBody
-  const { conversationId, messages: uiMessages, attachments: incomingAttachments = [] } = body
+  const {
+    conversationId,
+    messages: uiMessages,
+    attachments: incomingAttachments = [],
+    clientMessageId,
+  } = body
 
   if (!conversationId || !Array.isArray(uiMessages)) {
     return NextResponse.json({ error: "invalid" }, { status: 400 })
@@ -113,18 +118,40 @@ export async function POST(req: NextRequest) {
 
   const lastUser = uiMessages[uiMessages.length - 1]
   let userMessageId: string | null = null
+  let isDuplicate = false
   if (lastUser?.role === "user") {
+    // Idempotência: se o cliente mandou clientMessageId e esse par já existe, só pega o id.
     const [inserted] = await db
       .insert(messages)
       .values({
         conversationId,
+        clientMessageId: clientMessageId ?? null,
         role: "user",
         content: lastUser.parts as unknown as object,
       })
+      .onConflictDoNothing({
+        target: [messages.conversationId, messages.clientMessageId],
+      })
       .returning({ id: messages.id })
-    userMessageId = inserted?.id ?? null
 
-    if (userMessageId && incomingAttachments.length > 0) {
+    if (inserted) {
+      userMessageId = inserted.id
+    } else if (clientMessageId) {
+      isDuplicate = true
+      const [existing] = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.conversationId, conversationId),
+            eq(messages.clientMessageId, clientMessageId)
+          )
+        )
+        .limit(1)
+      userMessageId = existing?.id ?? null
+    }
+
+    if (userMessageId && !isDuplicate && incomingAttachments.length > 0) {
       await db.insert(attachmentsTable).values(
         incomingAttachments.map((a) => ({
           messageId: userMessageId!,
@@ -158,36 +185,9 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Build the context from DB (persisted history, including compaction summary).
-  const persistedContext = await buildContext(conversationId)
-
-  // Inject attachment content into the latest user message of the model-side history.
-  const attachmentParts = await Promise.all(
-    incomingAttachments.map(async (a) => {
-      const { data, mimeType } = await downloadAttachment(a.storagePath)
-      const buf = Buffer.from(data)
-      return {
-        type: "file" as const,
-        data: buf,
-        mediaType: mimeType || a.mimeType,
-        filename: a.originalName,
-      }
-    })
-  )
-
-  const modelMessages: ModelMessage[] = await convertToModelMessages(uiMessages)
-  if (attachmentParts.length > 0 && modelMessages.length > 0) {
-    const last = modelMessages[modelMessages.length - 1]
-    if (last.role === "user") {
-      const existingContent = Array.isArray(last.content)
-        ? last.content
-        : [{ type: "text", text: String(last.content) }]
-      last.content = [...existingContent, ...attachmentParts] as typeof last.content
-    }
-  }
-
-  // Replace with persisted context when available (keeps the system/summary message included).
-  const historyMessages = persistedContext.length > 0 ? persistedContext : modelMessages
+  // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
+  // (Attachments entram via buildContext como file parts com URL, não bytes.)
+  const historyMessages = await buildContext(conversationId)
 
   const builtinTools = getBuiltinTools({ enabled: enabledTools, driveToken })
   const mcp = await loadMcpTools({
@@ -198,6 +198,7 @@ export async function POST(req: NextRequest) {
 
   const result = streamText({
     model: getModel(model),
+    system: conv.systemPrompt?.trim() || undefined,
     messages: historyMessages,
     tools: allTools,
     stopWhen: ({ steps }) => steps.length >= 5,

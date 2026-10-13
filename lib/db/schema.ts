@@ -10,6 +10,7 @@ import {
   numeric,
   pgSchema,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 const authSchema = pgSchema("auth")
@@ -69,6 +70,7 @@ export const messages = pgTable(
     conversationId: uuid("conversation_id")
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
+    clientMessageId: text("client_message_id"),
     role: text("role").notNull(),
     content: jsonb("content").notNull(),
     inputTokens: integer("input_tokens"),
@@ -78,7 +80,10 @@ export const messages = pgTable(
     summarizesUntilMessageId: uuid("summarizes_until_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("messages_conv_idx").on(t.conversationId, t.createdAt)]
+  (t) => [
+    index("messages_conv_idx").on(t.conversationId, t.createdAt),
+    uniqueIndex("messages_client_idx").on(t.conversationId, t.clientMessageId),
+  ]
 )
 
 export const attachments = pgTable("attachments", {
