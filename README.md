@@ -5,8 +5,8 @@ compartilhamento read-only, auto-compactação de contexto, governança de uso e
 
 > **Desafio técnico** — prazo 2026-10-15. Stack a critério do dev.
 
-**🔗 Deploy:** `https://chat-challenge.vercel.app` _(preenche quando sair)_
-**🎬 Vídeo:** _(preenche quando sair)_
+**🔗 Deploy:** https://chat-challenge-six.vercel.app
+**🎬 Vídeo:** _(preenche depois de gravar)_
 
 ---
 
