@@ -102,7 +102,8 @@ export function Sidebar({ conversations, user }: SidebarProps) {
       </div>
 
       <ScrollArea className="flex-1">
-        <nav className="p-2 space-y-0.5">
+        {/* pr-3 reserva espaço pra scrollbar de 10px que o Radix renderiza absolute no right-0 */}
+        <nav className="pl-2 pr-3 py-2 space-y-0.5">
           {conversations.length === 0 && (
             <div className="px-3 py-6 text-center space-y-3">
               <MessageSquarePlus className="w-8 h-8 mx-auto text-muted-foreground opacity-50" />
@@ -147,7 +148,7 @@ export function Sidebar({ conversations, user }: SidebarProps) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="shrink-0 p-1 mr-1 rounded hover:bg-background text-muted-foreground"
+                      className="shrink-0 p-1 mr-0.5 rounded hover:bg-background text-muted-foreground"
                       aria-label="Menu da conversa"
                     >
                       <MoreHorizontal className="w-4 h-4" />
