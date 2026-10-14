@@ -8,10 +8,13 @@ import { ChatView } from "@/components/chat/chat-view"
 
 export default async function ConversationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ autostart?: string }>
 }) {
   const { id } = await params
+  const { autostart } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -23,6 +26,12 @@ export default async function ConversationPage({
 
   const initialMessages = await listMessagesWithAttachments(id)
 
+  // Autostart é válido só se a última msg é user sem resposta — evita re-fire
+  // em refresh posterior.
+  const last = initialMessages[initialMessages.length - 1]
+  const shouldAutostart =
+    autostart === "1" && last?.role === "user" && initialMessages.length === 1
+
   return (
     <ChatView
       conversationId={conv.id}
@@ -32,6 +41,7 @@ export default async function ConversationPage({
       model={conv.model}
       systemPrompt={conv.systemPrompt ?? null}
       initialMessages={initialMessages}
+      autostart={shouldAutostart}
     />
   )
 }

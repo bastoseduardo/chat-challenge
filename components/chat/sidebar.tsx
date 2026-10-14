@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,13 +47,10 @@ export function Sidebar({ conversations, user }: SidebarProps) {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
 
-  async function newChat() {
-    const res = await fetch("/api/conversations", { method: "POST" })
-    const data = await res.json()
-    if (data.conversation?.id) {
-      router.push(`/c/${data.conversation.id}`)
-      router.refresh()
-    }
+  function newChat() {
+    // Não cria DB row aqui — só vai pro staging. A conversa é criada
+    // no servidor apenas quando o usuário envia a primeira mensagem.
+    router.push("/c/new")
   }
 
   async function deleteConv(id: string) {
@@ -101,9 +97,10 @@ export function Sidebar({ conversations, user }: SidebarProps) {
         </button>
       </div>
 
-      <ScrollArea className="flex-1">
-        {/* pr-3 reserva espaço pra scrollbar de 10px que o Radix renderiza absolute no right-0 */}
-        <nav className="pl-2 pr-3 py-2 space-y-0.5">
+      {/* Scroll nativo — Radix ScrollArea quebra layout com flex + truncate */}
+      {/* (envolvia o conteúdo em display:table, expandindo pela largura do item mais largo) */}
+      <div className="flex-1 overflow-y-auto">
+        <nav className="p-2 space-y-0.5">
           {conversations.length === 0 && (
             <div className="px-3 py-6 text-center space-y-3">
               <MessageSquarePlus className="w-8 h-8 mx-auto text-muted-foreground opacity-50" />
@@ -148,8 +145,8 @@ export function Sidebar({ conversations, user }: SidebarProps) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="shrink-0 p-1 mr-0.5 rounded hover:bg-background text-muted-foreground"
-                      aria-label="Menu da conversa"
+                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 mr-0.5 rounded hover:bg-background text-muted-foreground"
+                      aria-label="Opções da conversa"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
@@ -178,7 +175,7 @@ export function Sidebar({ conversations, user }: SidebarProps) {
             )
           })}
         </nav>
-      </ScrollArea>
+      </div>
 
       <div className="border-t p-3 space-y-1">
         <Link

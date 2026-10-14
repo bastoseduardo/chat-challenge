@@ -23,6 +23,9 @@ const SUGGESTIONS = [
   "Que horas são agora em Lisboa?",
 ]
 
+// Guard module-level: sobrevive ao double-mount do Strict Mode.
+const autoStartedConvs = new Set<string>()
+
 interface ChatViewProps {
   conversationId: string
   title: string
@@ -31,6 +34,7 @@ interface ChatViewProps {
   model: string
   systemPrompt: string | null
   initialMessages: UIMessage[]
+  autostart?: boolean
 }
 
 export function ChatView({
@@ -41,6 +45,7 @@ export function ChatView({
   model,
   systemPrompt,
   initialMessages,
+  autostart,
 }: ChatViewProps) {
   const router = useRouter()
   const [input, setInput] = useState("")
@@ -99,6 +104,27 @@ export function ChatView({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages])
+
+  // Autostart: 1ª mensagem user já foi persistida pelo backend ao criar a
+  // conversa. Chamamos sendMessage com o `messageId` existente pra que o AI
+  // SDK trate como substituição (não duplicação) e dispare o /api/chat.
+  // O Set module-level garante single-fire mesmo com double-mount do Strict Mode.
+  useEffect(() => {
+    if (!autostart) return
+    if (autoStartedConvs.has(conversationId)) return
+    const firstUser = initialMessages[0]
+    if (firstUser?.role !== "user") return
+    const text = firstUser.parts
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("\n")
+      .trim()
+    if (!text) return
+    autoStartedConvs.add(conversationId)
+    router.replace(`/c/${conversationId}`, { scroll: false })
+    void sendMessage({ text, messageId: firstUser.id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autostart, conversationId])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

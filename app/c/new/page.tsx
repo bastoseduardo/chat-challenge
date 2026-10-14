@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { createConversation } from "@/lib/db/queries/conversations"
-import { logAudit } from "@/lib/audit/log"
+import { NewChatView } from "@/components/chat/new-chat-view"
 
 export default async function NewChatPage() {
   const supabase = await createClient()
@@ -12,12 +11,5 @@ export default async function NewChatPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const conv = await createConversation(user.id)
-  await logAudit({
-    userId: user.id,
-    eventType: "conversation.created",
-    resourceType: "conversation",
-    resourceId: conv.id,
-  })
-  redirect(`/c/${conv.id}`)
+  return <NewChatView />
 }
