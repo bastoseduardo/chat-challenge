@@ -48,7 +48,10 @@ export function useAttachments(conversationId: string) {
           continue
         }
         const localId = crypto.randomUUID()
-        const previewUrl = kind === "image" ? URL.createObjectURL(file) : undefined
+        // Blob URL local pra renderizar na UI imediatamente, antes do upload
+        // concluir e das signed URLs do Storage ficarem disponíveis.
+        // Vale pra image E pra pdf (viewer embedded ou link clicável).
+        const previewUrl = URL.createObjectURL(file)
         setItems((prev) => [
           ...prev,
           {

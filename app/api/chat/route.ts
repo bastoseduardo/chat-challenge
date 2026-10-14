@@ -122,6 +122,16 @@ export async function POST(req: NextRequest) {
   let userMessageId: string | null = null
   let isDuplicate = false
   if (lastUser?.role === "user") {
+    // Sanitiza: remove file parts com URL blob (preview local do cliente).
+    // Attachments reais chegam via `attachments` body e vão pra tabela
+    // própria; buildContext reidrata com signed URLs do Storage.
+    const sanitizedParts = (lastUser.parts as Array<{ type?: string; url?: unknown }>).filter(
+      (p) => {
+        if (p?.type !== "file") return true
+        const url = typeof p.url === "string" ? p.url : ""
+        return !url.startsWith("blob:")
+      }
+    )
     // Idempotência: se o cliente mandou clientMessageId e esse par já existe, só pega o id.
     const [inserted] = await db
       .insert(messages)
@@ -129,7 +139,7 @@ export async function POST(req: NextRequest) {
         conversationId,
         clientMessageId: clientMessageId ?? null,
         role: "user",
-        content: lastUser.parts as unknown as object,
+        content: sanitizedParts as unknown as object,
       })
       .onConflictDoNothing({
         target: [messages.conversationId, messages.clientMessageId],
@@ -213,12 +223,21 @@ export async function POST(req: NextRequest) {
   })
   const allTools = { ...builtinTools, ...mcp.tools }
 
+  // Prompt mínimo pra garantir que, após tool calls, o modelo sempre escreva
+  // uma resposta final em texto pro usuário (evita conversas que terminam só
+  // com tool_calls e sem text).
+  const BASE_SYSTEM = `You can call tools to gather info. ALWAYS end your turn with a plain-text reply to the user summarizing what you found; never stop mid-tool-chain without a response.`
+  const userSystem = conv.systemPrompt?.trim()
+  const combinedSystem = userSystem ? `${BASE_SYSTEM}\n\n${userSystem}` : BASE_SYSTEM
+
   const result = streamText({
     model: getModel(model),
-    system: conv.systemPrompt?.trim() || undefined,
+    system: combinedSystem,
     messages: historyMessages,
     tools: allTools,
-    stopWhen: ({ steps }) => steps.length >= 5,
+    // 10 steps dá folga pra 4-5 tool calls + resposta final. 5 era agressivo
+    // demais e deixava conversas presas em "research mode" sem texto.
+    stopWhen: ({ steps }) => steps.length >= 10,
     onFinish: async ({ text, usage, finishReason, toolCalls, toolResults }) => {
       const inputTokens = usage?.inputTokens ?? 0
       const outputTokens = usage?.outputTokens ?? 0

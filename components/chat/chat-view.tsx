@@ -53,7 +53,11 @@ export function ChatView({
   const [quotaInfo, setQuotaInfo] = useState<{ scope: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const titledRef = useRef(initialMessages.length > 0)
+  // Considera "já titulada" só se já existe resposta do assistant — a user
+  // msg sozinha (autostart) ainda não gerou título.
+  const titledRef = useRef(
+    initialMessages.some((m) => m.role === "assistant")
+  )
   const attach = useAttachments(conversationId)
 
   const { messages, sendMessage, regenerate, stop, status, error } = useChat({
@@ -135,19 +139,41 @@ export function ChatView({
       return
     }
     setInput("")
-    const attachmentsPayload = attach.ready.map((a) => ({
+    const readyAttachments = attach.ready
+    const attachmentsPayload = readyAttachments.map((a) => ({
       storagePath: a.storagePath!,
       kind: a.kind,
       mimeType: a.mimeType,
       originalName: a.originalName,
       sizeBytes: a.sizeBytes,
     }))
+    // Previews locais (blob URL) só pra renderizar na UI imediatamente —
+    // o backend sanitiza e descarta esses file parts; o F5 reidrata via
+    // listMessagesWithAttachments usando signed URLs do Storage.
+    const previewFileParts = readyAttachments.map((a) => ({
+      type: "file" as const,
+      mediaType: a.mimeType,
+      url: a.previewUrl ?? "",
+      filename: a.originalName,
+    }))
     attach.reset()
     try {
-      await sendMessage(
-        { text: text || "(ver anexos)" },
-        { body: { attachments: attachmentsPayload } }
-      )
+      if (previewFileParts.length > 0) {
+        await sendMessage(
+          {
+            parts: [
+              ...previewFileParts,
+              { type: "text", text: text || "(ver anexos)" },
+            ],
+          },
+          { body: { attachments: attachmentsPayload } }
+        )
+      } else {
+        await sendMessage(
+          { text: text || "(ver anexos)" },
+          { body: { attachments: attachmentsPayload } }
+        )
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao enviar"
       toast.error(msg)

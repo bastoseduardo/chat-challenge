@@ -69,22 +69,34 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       out.push({ role: "user", content: content as any })
     } else if (row.role === "assistant") {
+      // Pula assistant msgs sem text (ex: só tool_calls que não escreveram
+      // texto final). O histórico não precisa dessas, e enviá-las com
+      // content: "" quebra ao marcar cacheControl + atrapalha o modelo.
+      if (!text.trim()) continue
       out.push({ role: "assistant", content: text })
     }
     // system/tool rows are skipped — tool invocations rebuilt from args/output
   }
 
-  // Prompt caching da Anthropic: marca a última mensagem estável como cache boundary.
-  // Tudo antes dela é cacheado (até 1h), bate ~90% desconto em cache hits.
-  // Usamos a penúltima pra evitar invalidar o cache no stream atual (a última ainda está "quente").
-  if (out.length >= 2) {
-    const anchor = out[out.length - 2] as ModelMessage & {
+  // Prompt caching da Anthropic: marca a última mensagem estável com conteúdo
+  // não-vazio como cache boundary. Tudo antes dela é cacheado (até 1h).
+  // Importante: Anthropic rejeita cacheControl em text blocks vazios (ex: uma
+  // assistant msg que só chamou tool sem escrever texto). Por isso procuramos
+  // de trás pra frente a última msg com conteúdo real.
+  for (let i = out.length - 2; i >= 0; i--) {
+    const msg = out[i] as ModelMessage & {
       providerOptions?: Record<string, unknown>
     }
-    anchor.providerOptions = {
-      ...(anchor.providerOptions ?? {}),
+    const hasContent =
+      typeof msg.content === "string"
+        ? msg.content.trim().length > 0
+        : Array.isArray(msg.content) && msg.content.length > 0
+    if (!hasContent) continue
+    msg.providerOptions = {
+      ...(msg.providerOptions ?? {}),
       anthropic: { cacheControl: { type: "ephemeral" } },
     }
+    break
   }
 
   return out

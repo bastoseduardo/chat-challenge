@@ -28,37 +28,21 @@ const INTERNAL_SERVERS: Record<string, (userId: string) => InMemoryMCPTransport>
     new InMemoryMCPTransport((msg) => handleUserNotesRpc(msg, userId)),
 }
 
-function getInternalHosts(): string[] {
-  const hosts = new Set<string>()
-  const sources = [
-    process.env.NEXT_PUBLIC_APP_URL,
-    process.env.VERCEL_URL,
-    process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    process.env.VERCEL_BRANCH_URL,
-  ]
-  for (const src of sources) {
-    if (!src) continue
-    try {
-      // envs do Vercel vêm sem scheme (ex: "chat-challenge-six.vercel.app")
-      const url = src.startsWith("http") ? src : `https://${src}`
-      hosts.add(new URL(url).host.toLowerCase())
-    } catch {}
-  }
-  hosts.add("localhost:3000")
-  hosts.add("localhost")
-  return [...hosts]
-}
-
+/**
+ * Decide se a URL do MCP server aponta pra um server interno deste app.
+ * Usa o PATH como chave (não o host): se o mcp_config do usuário tem URL
+ * com path `/api/mcp/user-notes`, usamos sempre in-memory, independente
+ * do host configurado — resolve o caso de dev local onde a config tem
+ * URL de produção (e vice-versa, e deploys preview). Como o handler
+ * filtra por userId da sessão, não há vazamento de dados entre users.
+ */
 function pickInternalPath(url: string): string | null {
-  let parsed: URL
+  let path: string
   try {
-    parsed = new URL(url)
+    path = new URL(url).pathname
   } catch {
     return null
   }
-  const hosts = getInternalHosts()
-  if (!hosts.includes(parsed.host.toLowerCase())) return null
-  const path = parsed.pathname
   for (const key of Object.keys(INTERNAL_SERVERS)) {
     if (path === key || path.startsWith(key + "/")) return key
   }
@@ -126,9 +110,7 @@ export async function loadMcpTools(opts: {
       const errMsg = err instanceof Error ? err.message : "unknown"
       console.error(
         `[mcp] server "${server.name}" (${server.transport.url}) failed:`,
-        err,
-        "| internal hosts:",
-        getInternalHosts()
+        err
       )
       await logAudit({
         userId: opts.userId,
@@ -138,7 +120,6 @@ export async function loadMcpTools(opts: {
           name: server.name,
           url: server.transport.url,
           error: errMsg,
-          internal_hosts: getInternalHosts(),
           success: false,
         },
       })
