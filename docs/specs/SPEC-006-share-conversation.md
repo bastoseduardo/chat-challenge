@@ -4,6 +4,9 @@
 **Dependências:** SPEC-001, SPEC-002
 **Estimativa:** ~2h
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Dono gera link público read-only de uma conversa. Visitante vê histórico (incluindo anexos) sem login. Dono pode revogar. View é live.
 

@@ -4,6 +4,9 @@
 **Dependências:** SPEC-001
 **Estimativa:** ~5h (built-in: 2h, MCP: 2h, Drive opcional: 1h)
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Modelo decide invocar tools built-in (`web_search` via Tavily, `web_scrape` via Jina, `get_current_time`) + servers MCP configurados pelo user via JSON em settings.
 

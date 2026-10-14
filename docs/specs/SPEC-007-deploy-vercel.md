@@ -4,6 +4,9 @@
 **Dependências:** TODAS as outras specs
 **Estimativa:** ~2h (deploy) + 1h (vídeo) + 1h (README)
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Entregar link público funcional em `.vercel.app`, repo com README completo e vídeo demo de 3-4 min.
 

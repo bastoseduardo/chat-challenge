@@ -4,6 +4,9 @@
 **Dependências:** SPEC-001
 **Estimativa:** ~4h
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Contabilizar consumo (tokens + USD) por request; impor cap diário por-usuário e global; bloquear quando estourar; registrar todos eventos relevantes em `audit_events` e expor em `/admin/audit`.
 

@@ -4,6 +4,9 @@
 **Dependências:** SPEC-001
 **Estimativa:** ~3h
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Quando a conversa atingir 80% do context window do modelo, resumir mensagens antigas em uma `summary message` e continuar o chat sem interrupção.
 

@@ -5,6 +5,13 @@
 **Status:** Aprovado para execução
 **Ref:** [00-discovery.md](./00-discovery.md)
 
+> **Nota:** este documento é um snapshot da fase de Planning (pré-execução).
+> Decisões tomadas durante a implementação — incluindo features adicionadas
+> ao escopo depois do planejamento inicial (multi-modelo, prompt caching,
+> idempotência, rate limit por IP, pgvector + busca semântica, stop generation,
+> paste do clipboard, export, entre outras) — estão registradas em
+> [`03-decisions.md`](./03-decisions.md) a partir de §3.11.
+
 ---
 
 ## 1. Visão

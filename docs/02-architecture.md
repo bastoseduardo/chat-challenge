@@ -2,6 +2,14 @@
 
 **Ref:** [00-discovery.md](./00-discovery.md) · [01-prd.md](./01-prd.md)
 
+> **Nota:** este documento é um snapshot da fase de Planning (pré-execução).
+> Decisões arquiteturais tomadas durante a implementação — incluindo o schema
+> expandido para 11 tabelas (adição de `rate_limit_buckets`), a coluna
+> `embedding vector(512)` em `messages`, prompt caching da Anthropic,
+> idempotência via `client_message_id`, rate limit por IP, busca semântica
+> com pgvector + Voyage, multi-modelo e system prompt por conversa — estão
+> registradas em [`03-decisions.md`](./03-decisions.md) a partir de §3.11.
+
 ---
 
 ## 1. C4 — Nível 1 (System Context)

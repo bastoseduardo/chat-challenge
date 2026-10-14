@@ -4,6 +4,9 @@
 **Dependências:** nenhuma (fundação)
 **Estimativa:** ~6h
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Chat multi-conversa com login Google, streaming, histórico persistido, sidebar com conversas, criar/renomear/deletar.
 

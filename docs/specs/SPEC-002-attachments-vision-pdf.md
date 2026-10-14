@@ -4,6 +4,9 @@
 **Dependências:** SPEC-001
 **Estimativa:** ~4h
 
+> **Nota:** snapshot da fase de Planning. Decisões tomadas durante a implementação
+> estão em [`../03-decisions.md`](../03-decisions.md) a partir de §3.11.
+
 ## Objetivo
 Permitir upload de imagens (até 10 MB) e PDFs (até 20 MB), até 5 por mensagem, enviados ao modelo via content parts do AI SDK (vision nativo).
 
