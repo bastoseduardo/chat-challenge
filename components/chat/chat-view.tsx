@@ -5,7 +5,7 @@ import { DefaultChatTransport, type UIMessage } from "ai"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowUp, Share2, Loader2, Paperclip, Download } from "lucide-react"
+import { ArrowUp, Share2, Loader2, Paperclip, Download, Square } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { MessageBubble } from "./message-bubble"
@@ -51,7 +51,7 @@ export function ChatView({
   const titledRef = useRef(initialMessages.length > 0)
   const attach = useAttachments(conversationId)
 
-  const { messages, sendMessage, regenerate, status, error } = useChat({
+  const { messages, sendMessage, regenerate, stop, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -244,7 +244,20 @@ export function ChatView({
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Digite sua mensagem... (Shift+Enter para nova linha)"
+              onPaste={(e) => {
+                const files = Array.from(e.clipboardData.files)
+                const imgs = files.filter((f) => f.type.startsWith("image/"))
+                if (imgs.length > 0) {
+                  e.preventDefault()
+                  const dt = new DataTransfer()
+                  imgs.forEach((f) => dt.items.add(f))
+                  void attach.add(dt.files)
+                  toast.success(
+                    imgs.length === 1 ? "Imagem colada" : `${imgs.length} imagens coladas`
+                  )
+                }
+              }}
+              placeholder="Digite sua mensagem... (Shift+Enter nova linha, Ctrl+V cola imagem)"
               className="flex-1 resize-none min-h-[52px] max-h-48"
               rows={1}
               onKeyDown={(e) => {
@@ -255,14 +268,27 @@ export function ChatView({
               }}
               disabled={isLoading}
             />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={(!input.trim() && attach.ready.length === 0) || isLoading}
-              className="h-[52px] w-[52px] shrink-0"
-            >
-              <ArrowUp className="w-5 h-5" />
-            </Button>
+            {isLoading ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="destructive"
+                onClick={() => stop()}
+                className="h-[52px] w-[52px] shrink-0"
+                title="Parar geração"
+              >
+                <Square className="w-5 h-5" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!input.trim() && attach.ready.length === 0}
+                className="h-[52px] w-[52px] shrink-0"
+              >
+                <ArrowUp className="w-5 h-5" />
+              </Button>
+            )}
           </div>
         </div>
       </form>

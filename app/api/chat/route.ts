@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { after } from "next/server"
 import { streamText, type UIMessage } from "ai"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
@@ -16,6 +17,7 @@ import { buildContext } from "@/lib/ai/history"
 import { scheduleCompaction } from "@/lib/ai/compaction"
 import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
 import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
+import { embedAndStoreMessage } from "@/lib/db/queries/search"
 
 export const maxDuration = 60
 
@@ -183,6 +185,21 @@ export async function POST(req: NextRequest) {
         attachments: incomingAttachments.length,
       },
     })
+
+    // Embedding em background (não bloqueia stream).
+    if (userMessageId && !isDuplicate) {
+      const userText = (lastUser.parts ?? [])
+        .filter(
+          (p): p is { type: "text"; text: string } =>
+            (p as { type?: string }).type === "text"
+        )
+        .map((p) => p.text)
+        .join("\n")
+        .trim()
+      if (userText) {
+        after(() => embedAndStoreMessage(userMessageId!, userText))
+      }
+    }
   }
 
   // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
@@ -254,6 +271,11 @@ export async function POST(req: NextRequest) {
         resourceId: conversationId,
         metadata: { inputTokens, outputTokens, model, finishReason },
       })
+
+      // Embedding da resposta em background (não bloqueia o cliente).
+      if (inserted?.id && text?.trim()) {
+        after(() => embedAndStoreMessage(inserted.id, text))
+      }
 
       scheduleCompaction({ conversationId, userId: user.id, model })
       await closeMcpClients(mcp.clients)

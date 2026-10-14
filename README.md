@@ -31,7 +31,23 @@ compartilhamento read-only, auto-compactação de contexto, governança de uso e
 
 - **MCP (Model Context Protocol)** — client factory lê JSON config do usuário em `user_settings.mcp_config`,
   instancia `@ai-sdk/mcp` clients e mescla tools no `streamText`. Server MCP próprio em
-  `/api/mcp/user-notes` (JSON-RPC 2.0 sobre HTTP, 3 tools: `save_note`, `list_notes`, `search_notes`).
+  `/api/mcp/user-notes` (JSON-RPC 2.0 sobre HTTP, 3 tools: `save_note`, `list_notes`, `search_notes`). Transport in-memory pra bypass do round-trip HTTP dentro da serverless.
+- **Google Drive connector** — tools `drive_search_files` (busca + navegação de pastas) e `drive_read_file` (Docs, Sheets, texto). Autentica via `provider_token` do Supabase Auth.
+- **Multi-modelo por conversa** — Sonnet 4.6 (default), Opus 4.7, Haiku 4.5 selecionáveis via ⚙️ no header.
+- **System prompt por conversa** — persona personalizada por tarefa, armazenada em `conversations.system_prompt`.
+- **Prompt caching Anthropic** — `cacheControl: ephemeral` no bloco de contexto. ~70% de economia de input tokens em conversas de 3+ turnos.
+- **Idempotência via `client_message_id`** — índice único por conversa, `ON CONFLICT DO NOTHING` evita duplicatas em retry.
+- **Attachments como signed URL** (não Buffer) — ~90% de economia de bandwidth em conversas com PDFs/imagens.
+- **Audit retention** — Vercel Cron diário em `0 3 * * *` deleta eventos > `AUDIT_RETENTION_DAYS` (default 90).
+- **Rate limit por IP** — 10/min no `/api/chat`, 20/min no upload. Postgres atomic UPSERT em `rate_limit_buckets`.
+- **Busca semântica cross-conversation (⌘K)** — `pgvector` + Voyage embeddings (`voyage-3-lite`, dim 512). Encontra conversas por **significado**, não por palavras exatas. Embeddings gerados em background via `after()`. HNSW index + função SQL `semantic_search_messages`.
+- **Stop generation mid-stream** — botão "parar" durante streaming (useChat.stop + AbortController).
+- **Paste image Ctrl+V** — cola screenshots direto no composer, sem clicar no clip.
+- **Message actions** — Copy + Regenerate (via `useChat.regenerate()`) em hover das mensagens assistant.
+- **Export conversation** — Markdown ou JSON via `GET /api/conversations/[id]/export?format=md|json`, inclui metadata, system prompt, tool invocations, anexos.
+- **Context indicator** — barra de progresso no header com % do contexto usado, dialog com histórico de compactações + botão "Comprimir agora".
+- **Testes** — 24 unit (Vitest, lib puros: tokens, costs, compaction) + 4 Playwright (golden path).
+- **Dark mode default** via next-themes + empty states + loading skeletons + 404/500 custom.
 
 ---
 
@@ -190,9 +206,19 @@ Para adicionar servers MCP externos, cole o JSON no formato:
 - **PDF via vision nativo** — bytes direto pro Claude (não parse local), preserva diagramas/tabelas em troca de mais tokens.
 - **Compaction por summary** — vs sliding window: preserva contexto decisivo. Prompt pede marcações em markdown (Decisões, Fatos, Pendências).
 - **MCP via config JSON** — vs UI de gerência: 1h de dev, cobre o diferencial sem explodir escopo.
+- **MCP in-memory transport** — pra servers do próprio deploy. Bypassa `fetch failed` em Vercel serverless + economiza round-trip HTTP interno.
 - **Share via função PG `SECURITY DEFINER`** — vs policies RLS complexas por token: superfície controlada, campos safe.
 - **Audit em Postgres (não Supabase Logs)** — permite query/UI de negócio direto na app.
 - **Caches de tokens** — pre-check otimista com margem 5%, aceita over-count mínimo (sem advisory locks).
+- **Prompt caching ephemeral** — marca penúltima mensagem com `cacheControl`. ~70% de economia em input tokens de conversas longas.
+- **Attachments como signed URL** — não download+upload de bytes pro Claude. ~90% de economia de bandwidth.
+- **Idempotência via `client_message_id`** — índice único + `ON CONFLICT DO NOTHING` em vez de debouncing frágil.
+- **Tool invocations persistidos + hidratados** — reload da página mostra cards de tool call reconstruídos (não re-executa, usa args+result do banco).
+- **Audit retention via Vercel Cron** — vs `pg_cron`: lógica em TS reusa libs do projeto, debug nos Vercel Logs.
+- **Rate limit por IP em Postgres** — vs Upstash Redis: zero serviço extra, atomic UPSERT basta pra 1 min / 10 req.
+- **Modelo e system prompt por conversa** — não global per-user. Permite personas por tarefa.
+- **Export em Markdown** — portável (Notion, Obsidian). JSON disponível pra integrations.
+- **Busca semântica (pgvector + Voyage)** — vs full-text search: entende sinônimos e paráfrases. Voyage grátis até 20M tokens/mês; embedding em background via `after()`.
 
 ---
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -12,10 +12,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, MoreHorizontal, Trash2, Pencil, LogOut, Settings, BarChart3, MessageSquarePlus } from "lucide-react"
+import { Plus, MoreHorizontal, Trash2, Pencil, LogOut, Settings, BarChart3, MessageSquarePlus, Search } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme/toggle"
+import { SearchDialog } from "@/components/search/search-dialog"
 
 interface Conversation {
   id: string
@@ -34,6 +35,18 @@ export function Sidebar({ conversations, user }: SidebarProps) {
   const [isPending, startTransition] = useTransition()
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setSearchOpen((o) => !o)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
 
   async function newChat() {
     const res = await fetch("/api/conversations", { method: "POST" })
@@ -70,11 +83,22 @@ export function Sidebar({ conversations, user }: SidebarProps) {
 
   return (
     <aside className="w-64 border-r flex flex-col shrink-0 bg-card min-h-0 overflow-hidden">
-      <div className="p-3 border-b">
+      <div className="p-3 border-b space-y-2">
         <Button onClick={newChat} className="w-full justify-start gap-2" size="sm">
           <Plus className="w-4 h-4" />
           Nova conversa
         </Button>
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-background text-sm text-muted-foreground hover:bg-accent transition-colors"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="flex-1 text-left">Buscar...</span>
+          <kbd className="hidden sm:inline-flex items-center text-[10px] border px-1 py-0.5 rounded">
+            ⌘K
+          </kbd>
+        </button>
       </div>
 
       <ScrollArea className="flex-1">
@@ -122,8 +146,8 @@ export function Sidebar({ conversations, user }: SidebarProps) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="p-1 mr-1 opacity-0 group-hover:opacity-100 rounded hover:bg-background"
-                      aria-label="Menu"
+                      className="p-1 mr-1 opacity-40 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 rounded hover:bg-background text-muted-foreground transition-opacity"
+                      aria-label="Menu da conversa"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
@@ -190,6 +214,7 @@ export function Sidebar({ conversations, user }: SidebarProps) {
           </form>
         </div>
       </div>
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </aside>
   )
 }

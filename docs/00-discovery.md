@@ -172,17 +172,21 @@ Setup (Supabase + Vercel + repo)
 
 ---
 
-## 9. Golden path do vídeo (3-4 min)
+## 9. Golden path do vídeo (3:30)
 
-1. (0:00) Login com Google → tela inicial com conversas vazias.
-2. (0:20) Criar nova conversa, mandar "Me resuma este PDF" + anexar PDF técnico. Resposta streaming.
-3. (0:50) Nova mensagem com imagem (print de diagrama). Modelo descreve o conteúdo (vision).
-4. (1:20) Perguntar "O que saiu de novo na OpenAI essa semana?" → tool `web_search` é disparada (log visível) → resposta sintetizada com fontes.
-5. (1:50) Perguntar algo que requer o MCP server próprio (ex.: "Salve esta decisão nas minhas notas"). Mostra tool call.
-6. (2:20) Clicar "Compartilhar" → copiar link → abrir em aba anônima → mostrar read-only funcionando.
-7. (2:50) Abrir painel de uso: mostrar tokens consumidos + custo USD + barra do cap.
-8. (3:10) Abrir `/admin/audit` → mostrar lista de eventos (login, msg, tool, share, compaction).
-9. (3:30) Fechamento rápido: "deploy em `<url>.vercel.app`, código em GitHub".
+**Pré-recording:** zoom 110%, dark mode ativo, abas pré-logadas em `/usage` e `/admin/audit`, 1 PDF + 1 imagem na pasta.
+
+1. **(0:00-0:15) Abertura + Login Google** — "Chat Challenge com Claude Sonnet 4.6, deploy Vercel, backend Supabase, 10 requisitos em 3 min".
+2. **(0:15-0:35) Nova conversa + markdown** — "Me explica RLS no PostgreSQL com código". Mostra streaming + code block highlight.
+3. **(0:35-1:00) Vision + PDF** — anexa imagem ("o que tem aqui?") + PDF ("resume em 3 bullets").
+4. **(1:00-1:25) Web search** — "Quais foram as notícias de IA mais importantes essa semana? Cita as fontes". Expande o card de `web_search` pra mostrar args + result.
+5. **(1:25-1:50) MCP user-notes** — "Salva nas minhas notas: terminei o desafio em 72h". Depois "Lista minhas notas". Dois tool calls (`save_note`, `list_notes`).
+6. **(1:50-2:05) Share público** — Compartilhar → copia link → aba anônima → mostra read-only com anexos + tool calls.
+7. **(2:05-2:30) Busca semântica ⌘K** — abre dialog, digita "otimização de query postgres" → retorna conversa onde falou de `EXPLAIN ANALYZE`/`índice composto` (palavras diferentes). Explicar: pgvector + Voyage, embeddings em background.
+8. **(2:30-2:50) Settings + Export** — ⚙️ troca pra Opus 4.7 + system prompt "advogado LGPD". ⬇️ exporta `.md`. Hover em assistant message → Copy + Regenerate. Mostra botão **Stop** parando geração.
+9. **(2:50-3:05) Context indicator + compactação** — clica na barra `▓▓░` → dialog → "Comprimir agora" → barra reseta.
+10. **(3:05-3:20) Usage + Audit** — `/usage` (tokens hoje, custo USD, cap bar) + `/admin/audit` (login, message, tool, share, compaction com IP + UA).
+11. **(3:20-3:30) Fechamento** — "deploy em chat-challenge-six.vercel.app, código no GitHub, Next.js 16, AI SDK 7, Supabase, Drizzle, pgvector. Obrigado."
 
 ---
 

@@ -24,10 +24,13 @@ const REQUIRED = [
   "ADMIN_EMAILS",
 ] as const
 
+const OPTIONAL = ["VOYAGE_API_KEY", "CRON_SECRET", "AUDIT_RETENTION_DAYS"] as const
+
 const PLACEHOLDER_PATTERNS = [/^placeholder$/i, /^sk-placeholder$/i, /^tvly-placeholder$/i, /PLACEHOLDER/]
 
 const missing: string[] = []
 const placeholder: string[] = []
+const missingOptional: string[] = []
 
 for (const key of REQUIRED) {
   const value = process.env[key]
@@ -38,6 +41,10 @@ for (const key of REQUIRED) {
   if (PLACEHOLDER_PATTERNS.some((re) => re.test(value))) {
     placeholder.push(key)
   }
+}
+
+for (const key of OPTIONAL) {
+  if (!process.env[key]) missingOptional.push(key)
 }
 
 if (missing.length > 0) {
@@ -53,4 +60,18 @@ if (placeholder.length > 0) {
   console.warn("")
 }
 
-console.log(`✅ All ${REQUIRED.length} env vars present${placeholder.length ? " (with placeholders)" : ""}`)
+if (missingOptional.length > 0) {
+  console.warn("ℹ️  Optional env vars not set (feature disabled):")
+  for (const k of missingOptional) {
+    const feature =
+      k === "VOYAGE_API_KEY"
+        ? "semantic search"
+        : k === "CRON_SECRET"
+          ? "audit retention cron"
+          : "audit retention cron"
+    console.warn(`   - ${k} → ${feature}`)
+  }
+  console.warn("")
+}
+
+console.log(`✅ All ${REQUIRED.length} required env vars present${placeholder.length ? " (with placeholders)" : ""}`)

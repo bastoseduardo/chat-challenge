@@ -11,7 +11,18 @@ import {
   pgSchema,
   index,
   uniqueIndex,
+  customType,
 } from "drizzle-orm/pg-core"
+
+// pgvector dim 512 (Voyage voyage-3-lite). Serializado pra `[0.1,0.2,...]` no literal.
+const vector512 = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(512)"
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`
+  },
+})
 
 const authSchema = pgSchema("auth")
 export const authUsers = authSchema.table("users", {
@@ -78,6 +89,7 @@ export const messages = pgTable(
     model: text("model"),
     isSummary: boolean("is_summary").notNull().default(false),
     summarizesUntilMessageId: uuid("summarizes_until_message_id"),
+    embedding: vector512("embedding"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
