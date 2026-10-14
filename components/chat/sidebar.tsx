@@ -133,12 +133,13 @@ export function Sidebar({ conversations, user }: SidebarProps) {
               <div
                 key={c.id}
                 className={cn(
-                  "group flex items-center rounded hover:bg-accent",
+                  "group flex items-center rounded hover:bg-accent gap-0.5",
                   active && "bg-accent"
                 )}
               >
                 <Link
                   href={`/c/${c.id}`}
+                  title={c.title}
                   className="flex-1 min-w-0 px-2 py-1.5 text-sm truncate"
                 >
                   {c.title}
@@ -146,7 +147,7 @@ export function Sidebar({ conversations, user }: SidebarProps) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className="p-1 mr-1 opacity-40 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 rounded hover:bg-background text-muted-foreground transition-opacity"
+                      className="shrink-0 p-1 mr-1 rounded hover:bg-background text-muted-foreground"
                       aria-label="Menu da conversa"
                     >
                       <MoreHorizontal className="w-4 h-4" />

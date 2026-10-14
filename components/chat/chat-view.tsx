@@ -146,8 +146,13 @@ export function ChatView({
 
   return (
     <>
-      <header className="border-b px-6 h-14 flex items-center justify-between gap-3 shrink-0">
-        <h1 className="font-semibold truncate flex-1 min-w-0">{title}</h1>
+      <header className="border-b px-4 sm:px-6 h-14 flex items-center justify-between gap-2 shrink-0">
+        <h1
+          title={title}
+          className="font-semibold truncate flex-1 min-w-0 whitespace-nowrap"
+        >
+          {title}
+        </h1>
         <div className="flex items-center gap-1 shrink-0">
           <ContextIndicator
             conversationId={conversationId}
@@ -169,8 +174,8 @@ export function ChatView({
             </Button>
           </a>
           <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
-            <Share2 className="w-4 h-4 mr-2" />
-            Compartilhar
+            <Share2 className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Compartilhar</span>
           </Button>
         </div>
       </header>

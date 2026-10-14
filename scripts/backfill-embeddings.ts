@@ -64,7 +64,9 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
 }
 
 async function main() {
-  const url = process.env.DIRECT_URL || process.env.DATABASE_URL
+  // Prefere o pooler (DATABASE_URL) — o DNS direto `db.*.supabase.co` foi
+  // deprecado no Supabase e já não resolve em muitos projetos.
+  const url = process.env.DATABASE_URL || process.env.DIRECT_URL
   if (!url) throw new Error("DATABASE_URL or DIRECT_URL not set")
 
   const sql = postgres(url, { prepare: false })
