@@ -31,7 +31,7 @@ alter table user_notes
 create index user_notes_embedding_idx on user_notes using hnsw (embedding vector_cosine_ops);
 create index user_notes_user_created_idx on user_notes (user_id, created_at desc);
 ```
-Editar `lib/db/schema.ts` agora; **gerar a migração só no merge** (tasks.md, convenção 4).
+Migração manual `drizzle/migrations/0004_caderno_notes.sql`, aplicada com `scripts/apply-sql.ts` (tasks.md, convenção 4).
 
 ### Queries (`lib/db/queries/notes.ts`)
 `createNote`, `listNotes({ userId, conversationId?, limit, cursor })`, `getNote`, `updateNote`, `softDeleteNote`, `restoreNote`, `searchNotes({ userId, q, limit })`: texto (ilike em `content`/`quote`/`title`) unido a vetor (`embedQuery` + cosine) com deduplicação, ordenado por relevância. `similarNotes({ userId, text, limit, minSimilarity })` exportada para a R4-006.
@@ -65,3 +65,11 @@ Todas autenticadas, filtrando por `user.id`. Rate limit igual às outras rotas d
 
 ## Riscos
 - Migração em banco compartilhado com produção: só `add column`/`create index`, conforme convenção 3.
+
+## Notas da implementação (2026-10-15)
+- Migração `0004_caderno_notes.sql` aplicada (aditiva; as 3 notas existentes seguem válidas). `db:generate` não foi usado: o journal do drizzle-kit está parado na 0002.
+- `scripts/apply-sql.ts` criado pra aplicar migrações manuais numa transação.
+- **Segurança (achado fora do escopo, corrigido):** `POST /api/mcp/user-notes` aceitava `X-User-Id` sem verificação; qualquer usuário logado podia ler/gravar notas de outra conta. Agora o usuário vem da sessão e um `X-User-Id` diferente recebe 403. A `main` em produção ainda tem a falha (exposição limitada: o app OAuth está em modo de teste).
+- Busca: texto (`ilike` em conteúdo, trecho e título) primeiro, depois significado (similaridade ≥ 0,3), sem duplicatas. Sem embedding disponível, fica só com texto.
+- Notas criadas pelo MCP não têm `conversation_id` (o handler só conhece o usuário).
+

@@ -186,14 +186,32 @@ export const auditEvents = pgTable(
   ]
 )
 
-export const userNotes = pgTable("user_notes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => profiles.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-})
+// Caderno (SPEC-R4-004). Colunas novas via drizzle/migrations/0004_caderno_notes.sql
+// (manual e idempotente, como a 0003).
+export const userNotes = pgTable(
+  "user_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    title: text("title"),
+    quote: text("quote"),
+    sourceUrl: text("source_url"),
+    sourceTitle: text("source_title"),
+    sourcePage: integer("source_page"),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
+    embedding: vector512("embedding"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("user_notes_user_created_idx").on(t.userId, t.createdAt)]
+)
 
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   key: text("key").primaryKey(),
