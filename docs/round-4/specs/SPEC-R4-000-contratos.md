@@ -28,7 +28,7 @@ export interface Source {
   title: string
   url?: string            // web
   domain?: string         // web, sem "www."
-  pages?: { start: number; end: number } // documento PDF
+  pages?: { start: number; end: number } // documento PDF, inclusivo (a API manda end exclusivo)
   quotes: string[]        // trechos citados (citedText), sem duplicatas
   sourceIds: string[]     // sourceId das partes que viraram esta fonte
 }
