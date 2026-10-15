@@ -140,9 +140,9 @@ Princípio: o **servidor entrega o estado inicial** e o **cliente mantém o esta
    - Renomear: atualiza o cache na hora; se der erro, faz rollback e mostra um toast.
    - Apagar: remove da lista na hora e mostra o toast "Conversa apagada · Desfazer" por 5s. O desfazer chama `PATCH {deletedAt:null}`, que já é soft delete. Isso substitui o `confirm()`.
    - Título: `POST /title` passa a **retornar** o título, que é gravado no cache. O título aparece no header e na sidebar com um fade curto.
-3. **Nova conversa sem trocar de tela.** `/c/new` renderiza o mesmo `ChatView` com `conversationId` nulo. Ao enviar:
-   - o `/api/chat` aceita `conversationId` ausente, cria a conversa e devolve o id em `messageMetadata` (ou num data part) no início do stream;
-   - o cliente faz `window.history.replaceState(null, "", "/c/" + id)` (o App Router do Next 16 sincroniza com `usePathname`) e insere a conversa no topo do cache;
+3. **Nova conversa sem trocar de tela.** `/c/new` renderiza o mesmo `ChatView` sem `conversationId`. *(Implementado diferente do rascunho: o id é gerado no cliente, `crypto.randomUUID()`, e `POST /api/conversations {id}` cria a linha de forma idempotente. Assim o `/api/chat` e a idempotência por `client_message_id` não mudam.)* Ao enviar:
+   - o cliente cria a conversa (ou no primeiro anexo, porque o upload exige a linha);
+   - faz `window.history.replaceState(null, "", "/c/" + id)` (o App Router do Next 16 sincroniza com `usePathname`) e insere a conversa no topo do cache;
    - resultado: nenhuma navegação, nenhum skeleton, nenhum `?autostart=1`, e anexos funcionando já na primeira mensagem. `NewChatView`, o `autoStartedConvs` e o fluxo de autostart são removidos.
 4. **Uso e contexto via stream.** O `onFinish` do servidor anexa `{ totalTokens, compactionCount }` em `messageMetadata`, e o cliente atualiza o cache. Isso remove o polling de 10s. A compactação em background é exibida pela próxima resposta ou pelo diálogo, que busca os dados ao abrir.
 5. **Shell único.** Mover `c/`, `settings/`, `usage/` e `admin/` para um route group `app/(app)/` com o layout que contém a sidebar. Tirar `force-dynamic` do layout (a auth já roda no `proxy.ts`). Configurações e uso abrem dentro do shell, sem "←".
@@ -167,15 +167,15 @@ Cada fase pode ir pra produção sozinha. A ordem prioriza a dor citada (reloads
 - **Pronto quando:** o app inteiro troca de identidade sem mudança de JSX e os testes Playwright continuam passando.
 
 ### Fase 2: Fim dos reloads (~4h)
-- [ ] React Query: provider, `initialData` da lista, hooks `useConversations` e `useConversation(id)`.
-- [ ] Remover os 5 `router.refresh()`.
-- [ ] Renomear e apagar otimistas, com toast de desfazer e endpoint de restore.
-- [ ] `/title` retorna o título e atualiza o cache.
-- [ ] Nova conversa no mesmo `ChatView` + `replaceState`; `/api/chat` cria a conversa; remover `NewChatView` e o autostart.
-- [ ] `messageMetadata` com uso e contexto; remover o polling.
-- [ ] Route group `(app)` com settings e usage dentro do shell; tirar `force-dynamic` do layout.
-- [ ] `use-stick-to-bottom` + botão "Ir para o fim".
-- [ ] `React.memo` nas mensagens concluídas (só a última re-renderiza durante o stream).
+- [x] React Query: provider, `initialData` da lista, hooks `useConversations` e `useConversation(id)`.
+- [x] Remover os 5 `router.refresh()`.
+- [x] Renomear e apagar otimistas, com toast de desfazer e endpoint de restore.
+- [x] `/title` retorna o título e atualiza o cache.
+- [x] Nova conversa no mesmo `ChatView` + `replaceState`; id gerado no cliente + `POST /api/conversations {id}`; `NewChatView` e autostart removidos.
+- [x] `messageMetadata` com uso e contexto; remover o polling.
+- [x] Route group `(app)` com settings e usage dentro do shell; tirar `force-dynamic` do layout.
+- [x] `use-stick-to-bottom` + botão "Ir para o fim".
+- [x] `React.memo` nas mensagens concluídas (só a última re-renderiza durante o stream).
 - **Pronto quando:** num fluxo de nova conversa → 3 mensagens → renomear → apagar → desfazer, a aba Network não mostra nenhum request RSC (`?_rsc=`) além do prefetch de links.
 
 ### Fase 3: Conversa e composer (~4h)
@@ -236,5 +236,6 @@ Cada fase pode ir pra produção sozinha. A ordem prioriza a dor citada (reloads
 ## 7. Riscos
 
 - **`replaceState` no App Router:** o Next ≥14.1 integra `history.replaceState` ao router. Validar no 16.4 que `usePathname` atualiza e que o "voltar" leva pra conversa anterior, não pra `/c/new`.
-- **Criar a conversa dentro do `/api/chat`:** muda a idempotência (`client_message_id` precisa de escopo por usuário quando ainda não existe conversa). Cobrir com teste unitário.
+- ~~Criar a conversa dentro do `/api/chat`~~: evitado com id gerado no cliente. Efeito colateral aceito: anexar um arquivo e desistir deixa uma conversa vazia "Nova conversa" no banco.
+- **Sessão expirada:** sem sessão, o proxy responde `/api/*` com 307 para `/login` e o `fetch` segue até um 200 em HTML. O cliente trata redirect como falha (`succeeded()` em `lib/conversations/store.ts`). O ideal seria o proxy responder 401 JSON em `/api/*`; isso fica fora do escopo de UI.
 - **Fontes:** três famílias aumentam o payload. Usar subsets `latin`, só os pesos 400 e 600 e a variável do Source Serif.

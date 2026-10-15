@@ -43,6 +43,13 @@ export default function LoginPage() {
           {loading ? "Redirecionando..." : "Continuar com Google"}
         </Button>
 
+        {process.env.NODE_ENV === "development" && (
+          <Button asChild variant="outline" className="w-full">
+            {/* Só em dev: sessão real via /auth/dev-login (requer DEV_LOGIN_EMAIL). */}
+            <a href="/auth/dev-login">Entrar sem Google (dev)</a>
+          </Button>
+        )}
+
         <p className="text-xs text-center text-muted-foreground">
           Ao continuar, você concorda que suas conversas serão persistidas e auditadas.
         </p>

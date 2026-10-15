@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Settings2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
 import { MODELS } from "@/lib/ai/pricing"
 import { cn } from "@/lib/utils"
+import { succeeded } from "@/lib/conversations/store"
 
 interface Props {
   conversationId: string
@@ -27,19 +27,25 @@ export function ConversationSettings({
   initialModel,
   initialSystemPrompt,
 }: Props) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
+  // Último valor salvo — vira a referência de "tem mudanças" sem precisar
+  // recarregar a página pra receber props novas do servidor.
+  const [saved, setSaved] = useState({
+    model: initialModel,
+    systemPrompt: initialSystemPrompt?.trim() || null,
+  })
   const [model, setModel] = useState(initialModel)
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt ?? "")
   const [saving, setSaving] = useState(false)
 
-  // Reseta ao reabrir (caso a conversa mude por outra ação)
-  useEffect(() => {
-    if (open) {
-      setModel(initialModel)
-      setSystemPrompt(initialSystemPrompt ?? "")
+  // Ao abrir, descarta edições não salvas da vez anterior.
+  function openDialog(next: boolean) {
+    if (next) {
+      setModel(saved.model)
+      setSystemPrompt(saved.systemPrompt ?? "")
     }
-  }, [open, initialModel, initialSystemPrompt])
+    setOpen(next)
+  }
 
   async function save() {
     setSaving(true)
@@ -50,33 +56,33 @@ export function ConversationSettings({
         model,
         systemPrompt: systemPrompt.trim() || null,
       }),
-    })
+    }).catch(() => null)
     setSaving(false)
-    if (res.ok) {
+    if (succeeded(res)) {
+      setSaved({ model, systemPrompt: systemPrompt.trim() || null })
       toast.success("Configurações salvas")
       setOpen(false)
-      router.refresh()
     } else {
-      toast.error("Erro ao salvar")
+      toast.error("Não foi possível salvar. Tente de novo.")
     }
   }
 
   const hasChanges =
-    model !== initialModel ||
-    (systemPrompt.trim() || null) !== (initialSystemPrompt?.trim() || null)
+    model !== saved.model || (systemPrompt.trim() || null) !== saved.systemPrompt
 
   return (
     <>
       <Button
         variant="ghost"
         size="icon"
-        onClick={() => setOpen(true)}
+        onClick={() => openDialog(true)}
         title="Configurações da conversa"
+        aria-label="Configurações da conversa"
       >
         <Settings2 className="w-4 h-4" />
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={openDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Configurações da conversa</DialogTitle>

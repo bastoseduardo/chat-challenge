@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,26 +12,20 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Plus, MoreHorizontal, Trash2, Pencil, LogOut, Settings, BarChart3, MessageSquarePlus, Search } from "lucide-react"
-import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme/toggle"
 import { SearchDialog } from "@/components/search/search-dialog"
-
-interface Conversation {
-  id: string
-  title: string
-  updatedAt: string
-}
+import { useConversations, useConversationActions } from "@/lib/conversations/store"
 
 interface SidebarProps {
-  conversations: Conversation[]
   user: { id: string; email: string; name: string; avatar: string | null }
 }
 
-export function Sidebar({ conversations, user }: SidebarProps) {
+export function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isPending, startTransition] = useTransition()
+  const { data: conversations = [] } = useConversations()
+  const actions = useConversationActions()
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
@@ -53,28 +47,18 @@ export function Sidebar({ conversations, user }: SidebarProps) {
     router.push("/c/new")
   }
 
-  async function deleteConv(id: string) {
-    if (!confirm("Deletar esta conversa?")) return
-    const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" })
-    if (res.ok) {
-      toast.success("Conversa deletada")
-      startTransition(() => {
-        if (pathname === `/c/${id}`) router.push("/")
-        router.refresh()
-      })
-    }
+  // Sem confirm(): a conversa some na hora e o toast oferece "Desfazer"
+  // (o delete é soft no banco).
+  function deleteConv(id: string) {
+    if (pathname === `/c/${id}`) router.push("/c/new")
+    void actions.remove(id)
   }
 
-  async function submitRename(id: string) {
+  function submitRename(id: string, currentTitle: string) {
     const title = renameValue.trim()
     setRenamingId(null)
-    if (!title) return
-    const res = await fetch(`/api/conversations/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title }),
-    })
-    if (res.ok) router.refresh()
+    if (!title || title === currentTitle) return
+    void actions.rename(id, title)
   }
 
   return (
@@ -118,9 +102,10 @@ export function Sidebar({ conversations, user }: SidebarProps) {
                   autoFocus
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={() => submitRename(c.id)}
+                  aria-label="Novo título da conversa"
+                  onBlur={() => submitRename(c.id, c.title)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") submitRename(c.id)
+                    if (e.key === "Enter") submitRename(c.id, c.title)
                     if (e.key === "Escape") setRenamingId(null)
                   }}
                   className="w-full px-2 py-1.5 rounded text-sm bg-background border"
@@ -163,11 +148,10 @@ export function Sidebar({ conversations, user }: SidebarProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => deleteConv(c.id)}
-                      disabled={isPending}
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Deletar
+                      Apagar
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

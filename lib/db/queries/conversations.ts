@@ -30,12 +30,26 @@ export async function getConversation(id: string, userId: string) {
   return row ?? null
 }
 
-export async function createConversation(userId: string, title = "Nova conversa") {
-  const [row] = await db
+/**
+ * Cria a conversa com um id gerado no cliente. Idempotente: se o id já existe
+ * e é do mesmo usuário, devolve a existente com `created: false`. Se pertence
+ * a outro usuário, devolve null (o caller responde 409).
+ */
+export async function createConversationWithId(id: string, userId: string) {
+  const [inserted] = await db
     .insert(conversations)
-    .values({ userId, title })
+    .values({ id, userId, title: "Nova conversa" })
+    .onConflictDoNothing({ target: conversations.id })
     .returning()
-  return row
+  if (inserted) return { row: inserted, created: true }
+
+  const [existing] = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, id))
+    .limit(1)
+  if (!existing || existing.userId !== userId) return null
+  return { row: existing, created: false }
 }
 
 export async function renameConversation(id: string, userId: string, title: string) {
@@ -64,6 +78,13 @@ export async function softDeleteConversation(id: string, userId: string) {
   await db
     .update(conversations)
     .set({ deletedAt: new Date() })
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
+}
+
+export async function restoreConversation(id: string, userId: string) {
+  await db
+    .update(conversations)
+    .set({ deletedAt: null })
     .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
 }
 

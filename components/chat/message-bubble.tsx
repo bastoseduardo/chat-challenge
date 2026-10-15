@@ -7,7 +7,7 @@ import rehypeHighlight from "rehype-highlight"
 import { cn } from "@/lib/utils"
 import { ToolCallCard } from "./tool-call-card"
 import { Copy, RefreshCw, Check } from "lucide-react"
-import { useState } from "react"
+import { memo, useState } from "react"
 import { toast } from "sonner"
 
 interface MessageBubbleProps {
@@ -23,7 +23,13 @@ function extractMessageText(message: UIMessage): string {
     .join("\n")
 }
 
-export function MessageBubble({ message, isLast, onRegenerate }: MessageBubbleProps) {
+// Memoizado: durante o streaming só a última mensagem muda de referência,
+// então as anteriores não re-renderizam nem reparseiam o markdown a cada token.
+export const MessageBubble = memo(function MessageBubble({
+  message,
+  isLast,
+  onRegenerate,
+}: MessageBubbleProps) {
   const isUser = message.role === "user"
   const [copied, setCopied] = useState(false)
 
@@ -143,4 +149,4 @@ export function MessageBubble({ message, isLast, onRegenerate }: MessageBubblePr
       </div>
     </div>
   )
-}
+})

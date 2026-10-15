@@ -1,6 +1,6 @@
 export default function UsageLoading() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+    <div className="flex-1 overflow-y-auto"><div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
       <div className="h-8 w-48 bg-muted rounded animate-pulse" />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -8,6 +8,6 @@ export default function UsageLoading() {
         ))}
       </div>
       <div className="h-28 bg-muted rounded-lg animate-pulse" />
-    </div>
+    </div></div>
   )
 }

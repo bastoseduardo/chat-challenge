@@ -26,7 +26,12 @@ function detect(mime: string): "image" | "pdf" | null {
   return null
 }
 
-export function useAttachments(conversationId: string) {
+// `ensureConversation` roda antes do primeiro upload: na tela de nova conversa
+// a linha no banco ainda não existe e o upload exige uma conversa do usuário.
+export function useAttachments(
+  conversationId: string,
+  ensureConversation?: () => Promise<void>
+) {
   const [items, setItems] = useState<PendingAttachment[]>([])
 
   const add = useCallback(
@@ -65,6 +70,7 @@ export function useAttachments(conversationId: string) {
           },
         ])
         try {
+          await ensureConversation?.()
           const res = await fetch("/api/attachments/upload", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -102,7 +108,7 @@ export function useAttachments(conversationId: string) {
         }
       }
     },
-    [conversationId, items.length]
+    [conversationId, ensureConversation, items.length]
   )
 
   const remove = useCallback((id: string) => {
@@ -120,8 +126,12 @@ export function useAttachments(conversationId: string) {
     })
   }, [])
 
+  // Depois do envio: limpa a lista SEM revogar os blob URLs — a mensagem
+  // enviada continua exibindo essas prévias até a página recarregar.
+  const consume = useCallback(() => setItems([]), [])
+
   const ready = items.filter((it) => it.status === "ready" && it.storagePath)
   const isUploading = items.some((it) => it.status === "uploading")
 
-  return { items, add, remove, reset, ready, isUploading }
+  return { items, add, remove, reset, consume, ready, isUploading }
 }

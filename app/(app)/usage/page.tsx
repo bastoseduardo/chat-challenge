@@ -5,9 +5,6 @@ import { createClient } from "@/lib/supabase/server"
 import { sumTokensToday } from "@/lib/usage/counter"
 import { getCaps } from "@/lib/usage/caps"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
 
 export default async function UsagePage() {
   const supabase = await createClient()
@@ -25,13 +22,9 @@ export default async function UsagePage() {
   const pct = Math.min(100, Math.round((totalTokens / caps.userDaily) * 100))
 
   return (
+    <div className="flex-1 overflow-y-auto">
     <div className="w-full max-w-3xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
         <h1 className="text-2xl font-semibold">Uso de hoje</h1>
       </div>
 
@@ -84,6 +77,7 @@ export default async function UsagePage() {
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   )
 }

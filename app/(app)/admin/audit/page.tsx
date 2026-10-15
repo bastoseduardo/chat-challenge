@@ -8,7 +8,6 @@ import { isAdmin } from "@/lib/auth/admin"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft } from "lucide-react"
 
 interface SearchParams {
   limit?: string
@@ -46,13 +45,9 @@ export default async function AuditPage({
   const total = count ?? 0
 
   return (
+    <div className="flex-1 overflow-y-auto">
     <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
         <h1 className="text-2xl font-semibold">Audit log</h1>
         <Badge variant="outline">{total} eventos</Badge>
       </div>
@@ -157,6 +152,7 @@ export default async function AuditPage({
           </Button>
         </Link>
       </div>
+    </div>
     </div>
   )
 }
