@@ -8,7 +8,7 @@ Toda afirmação apoiada numa fonte mostra uma marcação `[n]`. A marcação ab
 
 ## Contexto
 - Contrato `lib/sources` e partes `source-*` persistidas: R4-001.
-- Decisão A/B: `docs/round-4/decisions/citations.md` (R4-002). **Ler antes de começar.**
+- Decisão: **A, com as ferramentas nativas básicas** (`docs/round-4/decisions/citations.md`). As citações vêm prontas em `TextUIPart.citations` (por bloco de texto, web e PDF).
 - `components/chat/message-bubble.tsx` (`AssistantMessage` agrupa ferramentas em `ResearchTrail` e renderiza texto com `Markdown`).
 - `components/chat/research-trail.tsx` (`describe()` traduz cada ferramenta numa frase).
 
@@ -16,8 +16,7 @@ Toda afirmação apoiada numa fonte mostra uma marcação `[n]`. A marcação ab
 
 ### Servidor
 1. **PDF:** em `lib/ai/history.ts` (`buildContext`), file parts de PDF recebem `providerOptions: { anthropic: { citations: { enabled: true }, title: <nome do arquivo> } }`.
-2. **Web, decisão A:** em `lib/ai/tools/index.ts`, `web_search` e `web_scrape` passam a ser `anthropic.tools.webSearch_20260209({ maxUses: 5 })` e `anthropic.tools.webFetch_20260209({ citations: { enabled: true }, maxUses: 5 })`. Os toggles de Configurações continuam com os mesmos ids. Tavily/Jina ficam no código, desativados.
-   **Decisão B:** saída do `web_search` numera resultados (`ref`) por requisição (contador num objeto criado por request e passado a `getBuiltinTools`); o modelo cita `[ref]`; o servidor converte `[n]` em partes `source-url` no `onEnd` antes de salvar (mesmo contrato).
+2. **Web:** em `lib/ai/tools/index.ts`, o toggle `web_search` passa a ligar `anthropic.tools.webSearch_20250305({ maxUses: 3 })` e o `web_scrape` liga `anthropic.tools.webFetch_20250910({ citations: { enabled: true }, maxUses: 2 })` (chaves do objeto de tools: `web_search` e `web_fetch`). Os ids dos toggles em Configurações não mudam. Tavily/Jina ficam no código, desligados, como plano de volta. **Não usar as versões `_20260209`** (rodam `code_execution` e poluem a trilha).
 3. **Instrução de sistema** (no `BASE_SYSTEM` do `/api/chat`): ao usar ferramentas, apoiar afirmações factuais nas fontes; quando a resposta vier só do conhecimento do modelo, dizer isso numa frase.
 
 ### Interface
@@ -25,10 +24,10 @@ Toda afirmação apoiada numa fonte mostra uma marcação `[n]`. A marcação ab
    - `CitationMark`: `[n]` sobrescrito, sans, cor `--tool`, botão acessível (`aria-label="Fonte n: <sourceLabel>"`).
    - `SourceCard`: popover (Radix, já disponível via shadcn) com título, `sourceLabel`, trechos citados entre aspas (até 2) e "Abrir fonte". Abre no hover/foco no desktop e no toque no mobile.
    - `SourcesList`: bloco "Fontes" no fim da resposta, numerado; recolhido com "Ver todas as N fontes" quando > 3.
-5. `AssistantMessage`: usar `citationsByPart` pra inserir `CitationMark` logo após o texto que cada fonte sustenta. Se o spike mostrar fontes agrupadas no fim, colocar as marcações ao fim do parágrafo anterior ao grupo.
+5. `AssistantMessage`: usar `citationsByPart` (lê `part.citations` de cada `TextUIPart`) pra inserir `CitationMark` logo após o bloco de texto que cada fonte sustenta. Os blocos citados chegam separados pelo provider (um bloco por trecho citado); juntar o Markdown dos blocos consecutivos antes de renderizar pra não quebrar listas e parágrafos, e posicionar as marcações no fim de cada trecho.
 6. **Trilha ↔ marcações:** `onMouseEnter`/`onFocus` num passo da trilha destaca (`data-highlight`) as marcações das fontes que ele gerou, e vice-versa. Estado num contexto React local da mensagem; nada global.
 7. **Sinal de confiança** no rodapé (ao lado das ações): "3 fontes, a mais recente de out/2026" quando há data, ou "Sem fontes externas" quando a resposta não usou ferramentas. Nada de porcentagem de "confiança".
-8. `research-trail.tsx`: `describe()` cobre as ferramentas nativas (decisão A) com as mesmas frases ("Buscou na web “…”", "Leu dominio.com").
+8. `research-trail.tsx`: `describe()` cobre `web_search` (`input.query`) e `web_fetch` (`input.url`), nativas e executadas pelo provider; o passo de busca mostra "N resultados" contando as partes `source-url` que vieram logo depois dele.
 9. Copiar resposta e `GET /api/conversations/[id]/export?format=md` incluem as fontes como notas de rodapé (`[^1]: título, URL`).
 
 ## Fora de escopo
@@ -51,4 +50,4 @@ Fontes no relatório compartilhado (R4-007 usa `SourcesList`). Guardar trecho (R
 
 ## Riscos
 - Popover em texto que ainda está em streaming pisca. **Mitigação:** só renderizar marcações quando a parte de texto seguinte já começou ou o stream acabou.
-- Decisão A muda o custo por pergunta. **Mitigação:** `maxUses` e números do spike.
+- Busca nativa usa ~5x mais tokens de entrada que o Tavily (~US$ 0,05 por pergunta com busca, medido no spike). **Mitigação:** `maxUses` e leitura de página só quando a busca não basta.

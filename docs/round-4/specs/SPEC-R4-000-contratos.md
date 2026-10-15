@@ -11,7 +11,8 @@
 | Callback de fim: `onEnd({ responseMessage, messages, isAborted, ... })`. `onFinish` é alias obsoleto | idem, `UIMessageStreamOnEndCallback` |
 | Partes de dados próprias: tipo `` `data-${NAME}` ``; emitidas com `createUIMessageStream({ execute: ({ writer }) => { writer.write(...); writer.merge(result.toUIMessageStream()) } })` | idem |
 | `@ai-sdk/anthropic@4.0.79`: file part aceita `providerOptions.anthropic.citations: { enabled: true }` (+ `title`); citações de PDF viram `source-document` com `providerMetadata.anthropic.{ citedText, startPageNumber, endPageNumber }` | `node_modules/@ai-sdk/anthropic/dist/index.js` |
-| Ferramentas nativas: `anthropic.tools.webSearch_20260209`, `webFetch_20260209` (citações na busca sempre ligadas; na leitura, `citations: { enabled: true }`) | idem |
+| Ferramentas nativas escolhidas: `anthropic.tools.webSearch_20250305`, `webFetch_20250910` (decisão em `docs/round-4/decisions/citations.md`; as `_20260209` rodam `code_execution` por baixo e foram descartadas) | idem |
+| **Citações ficam no `TextUIPart`**: ao fim de cada bloco de texto, o AI SDK grava `part.citations: Array<{ citedText, source }>`, com `source.sourceType` `"url"` (web) ou `"document"` (PDF, páginas em `source.providerMetadata.anthropic.start_page_number`/`end_page_number`) | `node_modules/ai/dist/index.js`, `case "text-end"` |
 | Modelos do app: `lib/ai/pricing.ts` (`DEFAULT_MODEL = "claude-sonnet-4-6"`) | código |
 
 ## 2. Contrato de fontes (criado pela R4-001, usado por 003, 005, 007, 012)
@@ -39,7 +40,7 @@ export function citationsByPart(message: UIMessage): Map<number, number[]>
 export function sourceLabel(s: Source): string // "postgresql.org" ou "relatorio.pdf, p. 4–5"
 ```
 
-Regras: fontes com a mesma `url` (ou mesmo `title` + `pages` em documento) são a mesma `Source`. Ordem pela primeira aparição.
+Regras: a fonte de verdade das citações é `TextUIPart.citations` (web e PDF). Partes `source-document` complementam (mesma citação, já intercalada). Partes `source-url` que chegam logo após uma busca são **resultados da busca**, não citações: `extractSources` as ignora (a trilha usa pra "N resultados"). Fontes com a mesma `url` (ou mesmo `title` + `pages` em documento) são a mesma `Source`. Ordem pela primeira aparição. `citationsByPart` mapeia o índice de cada `TextUIPart` pros números das fontes que ele cita.
 
 ## 3. Contrato de ids de mensagem (criado pela R4-001)
 
