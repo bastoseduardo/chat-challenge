@@ -208,6 +208,32 @@
       padding: 0;
     }
 
+    /* Bloco de código com barra (linguagem + copiar), ver markdown.tsx */
+    & .code-block {
+      margin-block: 0.75em;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--code-bg);
+      overflow: hidden;
+    }
+    & .code-block-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.3rem 0.4rem 0.3rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--muted-foreground);
+    }
+    & .code-block pre {
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+
     & table {
       display: block;
       max-width: 100%;

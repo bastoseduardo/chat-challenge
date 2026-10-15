@@ -2,17 +2,18 @@
 
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useStickToBottom } from "use-stick-to-bottom"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { ArrowUp, ArrowDown, Share2, Loader2, Paperclip, Download, Square } from "lucide-react"
+import { AlertCircle, ArrowDown, Share2, Loader2, Download, Upload } from "lucide-react"
 import { toast } from "sonner"
-import { MessageBubble } from "./message-bubble"
+import { MessageBubble, toolStepOf } from "./message-bubble"
 import { ShareDialog } from "./share-dialog"
-import { AttachmentTiles } from "./attachment-tiles"
 import { useAttachments } from "./use-attachments"
+import { Composer, type ComposerHandle } from "./composer"
+import { EmptyState } from "./empty-state"
+import { activityLabel } from "./research-trail"
 import { QuotaDialog } from "./quota-dialog"
 import { ContextIndicator } from "./context-indicator"
 import { ConversationSettings } from "./conversation-settings"
@@ -28,15 +29,24 @@ import {
 } from "@/lib/conversations/store"
 import { DEFAULT_MODEL } from "@/lib/ai/pricing"
 
-const SUGGESTIONS = [
-  "Me explica o que é RLS no PostgreSQL",
-  "Quais foram as notícias de IA mais relevantes essa semana?",
-  "Salva nas minhas notas: terminar o desafio técnico",
-  "Que horas são agora em Lisboa?",
-]
-
 interface ChatMetadata {
   usage?: { inputTokens: number; outputTokens: number }
+}
+
+// O transport do AI SDK lança Error com o corpo da resposta HTTP como message.
+function isQuotaError(error: Error | undefined) {
+  return !!error && error.message.includes("quota_exceeded")
+}
+
+function describeError(error: Error): string {
+  const m = error.message.toLowerCase()
+  if (m.includes("rate_limited")) {
+    return "Muitas mensagens seguidas. Espere um minuto e tente de novo."
+  }
+  if (m.includes("failed to fetch") || m.includes("network")) {
+    return "Sem conexão com o servidor. Confira a internet e tente de novo."
+  }
+  return "A resposta não pôde ser gerada."
 }
 
 interface ChatViewProps {
@@ -71,7 +81,9 @@ export function ChatView({
   const [input, setInput] = useState("")
   const [shareOpen, setShareOpen] = useState(false)
   const [quotaInfo, setQuotaInfo] = useState<{ scope: string } | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<ComposerHandle>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragDepth = useRef(0)
   // Considera "já titulada" só se já existe resposta do assistant.
   const titledRef = useRef(initialMessages.some((m) => m.role === "assistant"))
 
@@ -98,7 +110,7 @@ export function ChatView({
     resize: "smooth",
   })
 
-  const { messages, sendMessage, regenerate, stop, status } = useChat({
+  const { messages, sendMessage, regenerate, stop, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -116,14 +128,11 @@ export function ChatView({
         }
       },
     }),
+    // Cota estourada abre o diálogo; os demais erros aparecem inline, na
+    // própria conversa, com "Tentar de novo".
     onError: (error) => {
-      const msg = error?.message ?? ""
-      const lower = msg.toLowerCase()
-      if (lower.includes("quota") || lower.includes("429")) {
-        const scope = lower.includes("global") ? "global" : "user"
-        setQuotaInfo({ scope })
-      } else {
-        toast.error(msg || "Erro na requisição")
+      if (isQuotaError(error)) {
+        setQuotaInfo({ scope: error.message.includes('"global"') ? "global" : "user" })
       }
     },
     onFinish: ({ message }) => {
@@ -194,8 +203,7 @@ export function ChatView({
     setStarted(true)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleSubmit() {
     const text = input.trim()
     if (!text && attach.ready.length === 0) return
     if (attach.isUploading) {
@@ -252,6 +260,40 @@ export function ChatView({
   }
 
   const isLoading = status === "submitted" || status === "streaming"
+  const last = messages[messages.length - 1]
+
+  // Rótulo do que o assistente está fazendo agora, anunciado por leitores de
+  // tela e exibido enquanto nenhuma parte da resposta chegou.
+  const activity = useMemo(() => {
+    if (!isLoading) return null
+    if (!last || last.role === "user") return "Pensando…"
+    const parts = last.parts as Parameters<typeof toolStepOf>[0][]
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const step = toolStepOf(parts[i], String(i))
+      if (step && step.state !== "output-available" && step.state !== "output-error") {
+        return activityLabel(step)
+      }
+    }
+    return "Escrevendo a resposta…"
+  }, [isLoading, last])
+
+  const inlineError = error && !isQuotaError(error) ? describeError(error) : null
+
+  function onDragEnter(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes("Files")) return
+    dragDepth.current += 1
+    setDragging(true)
+  }
+  function onDragLeave() {
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragging(false)
+  }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    dragDepth.current = 0
+    setDragging(false)
+    if (e.dataTransfer.files.length > 0) void attach.add(e.dataTransfer.files)
+  }
 
   return (
     <>
@@ -292,145 +334,97 @@ export function ChatView({
         )}
       </header>
 
-      <div className="relative flex-1 min-h-0">
-        <div ref={scrollRef} className="h-full overflow-y-auto">
-          <div ref={contentRef} className="max-w-3xl mx-auto px-6 py-6 space-y-6">
-            {messages.length === 0 && (
-              <div className="py-10 space-y-8">
-                <div className="text-center">
-                  <h2 className="text-2xl font-semibold mb-2">Comece uma conversa</h2>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Envie mensagens, anexe imagens ou PDFs, e use tools como web search e MCP.
-                  </p>
+      <div
+        className="relative flex min-h-0 flex-1 flex-col"
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
+      >
+        <div className="relative min-h-0 flex-1">
+          <div ref={scrollRef} className="h-full overflow-y-auto">
+            <div ref={contentRef} className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
+              {messages.length === 0 && (
+                <EmptyState
+                  onPrompt={(text) => {
+                    setInput(text)
+                    composerRef.current?.focus()
+                  }}
+                  onPickFiles={() => composerRef.current?.pickFiles()}
+                />
+              )}
+              {messages.map((m, idx) => {
+                const isLast = idx === messages.length - 1
+                return (
+                  <MessageBubble
+                    key={m.id}
+                    message={m}
+                    isLast={isLast}
+                    isStreaming={isLast && isLoading && m.role === "assistant"}
+                    onRegenerate={handleRegenerate}
+                  />
+                )
+              })}
+              {isLoading && last?.role === "user" && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Pensando…
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setInput(s)}
-                      className="text-left px-3 py-2 rounded-lg border bg-card hover:bg-accent text-sm transition-colors"
-                    >
-                      {s}
-                    </button>
-                  ))}
+              )}
+              {inlineError && !isLoading && (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm"
+                >
+                  <AlertCircle className="size-4 shrink-0 text-destructive" aria-hidden />
+                  <span className="flex-1">{inlineError}</span>
+                  <Button size="sm" variant="outline" onClick={handleRegenerate}>
+                    Tentar de novo
+                  </Button>
                 </div>
-              </div>
-            )}
-            {messages.map((m, idx) => (
-              <MessageBubble
-                key={m.id}
-                message={m}
-                isLast={idx === messages.length - 1}
-                onRegenerate={handleRegenerate}
-              />
-            ))}
-            {isLoading && messages[messages.length - 1]?.role === "user" && (
-              <div
-                className="flex items-center gap-2 text-sm text-muted-foreground"
-                role="status"
-              >
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Pensando...
-              </div>
-            )}
+              )}
+              <p className="sr-only" aria-live="polite">
+                {activity ?? ""}
+              </p>
+            </div>
           </div>
-        </div>
-        {!isAtBottom && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void scrollToBottom()}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full shadow-md bg-card"
-          >
-            <ArrowDown className="w-4 h-4 mr-1.5" />
-            Ir para o fim
-          </Button>
-        )}
-      </div>
-
-      <form onSubmit={handleSubmit} className="border-t p-4 shrink-0">
-        <div className="max-w-3xl mx-auto">
-          <AttachmentTiles items={attach.items} onRemove={attach.remove} />
-          <div className="flex gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) void attach.add(e.target.files)
-                e.target.value = ""
-              }}
-            />
+          {!isAtBottom && (
             <Button
               type="button"
-              size="icon"
               variant="outline"
-              className="h-[52px] w-[52px] shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
-              aria-label="Anexar imagem ou PDF"
-              title="Anexar imagem ou PDF"
+              size="sm"
+              onClick={() => void scrollToBottom()}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-card shadow-md"
             >
-              <Paperclip className="w-5 h-5" />
+              <ArrowDown className="size-4 mr-1.5" />
+              Ir para o fim
             </Button>
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onPaste={(e) => {
-                const files = Array.from(e.clipboardData.files)
-                const imgs = files.filter((f) => f.type.startsWith("image/"))
-                if (imgs.length > 0) {
-                  e.preventDefault()
-                  const dt = new DataTransfer()
-                  imgs.forEach((f) => dt.items.add(f))
-                  void attach.add(dt.files)
-                  toast.success(
-                    imgs.length === 1 ? "Imagem colada" : `${imgs.length} imagens coladas`
-                  )
-                }
-              }}
-              placeholder="Digite sua mensagem... (Shift+Enter nova linha, Ctrl+V cola imagem)"
-              className="flex-1 resize-none min-h-[52px] max-h-48"
-              rows={1}
-              autoFocus={!existingId}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit(e)
-                }
-              }}
-              disabled={isLoading}
-            />
-            {isLoading ? (
-              <Button
-                type="button"
-                size="icon"
-                variant="destructive"
-                onClick={() => stop()}
-                className="h-[52px] w-[52px] shrink-0"
-                title="Parar geração"
-                aria-label="Parar geração"
-              >
-                <Square className="w-5 h-5" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!input.trim() && attach.ready.length === 0}
-                className="h-[52px] w-[52px] shrink-0"
-                aria-label="Enviar mensagem"
-              >
-                <ArrowUp className="w-5 h-5" />
-              </Button>
-            )}
-          </div>
+          )}
         </div>
-      </form>
+
+        <Composer
+          ref={composerRef}
+          value={input}
+          onChange={setInput}
+          onSubmit={() => void handleSubmit()}
+          onStop={() => void stop()}
+          onFiles={(files) => void attach.add(files)}
+          onRemoveAttachment={attach.remove}
+          attachments={attach.items}
+          canSend={!!input.trim() || attach.ready.length > 0}
+          isLoading={isLoading}
+          autoFocus={!existingId}
+        />
+
+        {dragging && (
+          <div className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-lg border-2 border-dashed border-primary bg-background/85">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Upload className="size-4" aria-hidden />
+              Solte para anexar imagens ou PDFs
+            </div>
+          </div>
+        )}
+      </div>
 
       {started && (
         <ShareDialog
