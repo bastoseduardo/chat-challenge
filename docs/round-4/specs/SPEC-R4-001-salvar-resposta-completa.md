@@ -44,3 +44,11 @@ Renderizar as fontes (R4-003). Mudar ferramentas (R4-003).
 
 ## #PATH_DECISION
 Salvar as `parts` da `UIMessage` (formato que a UI já entende) em vez de normalizar fontes em tabela própria: zero mapeamento na leitura, e o compartilhamento público (que lê `messages.content` pela função SQL) passa a receber as fontes de graça.
+
+## Notas da implementação (2026-10-15)
+- Persistência por **upsert** no `messages.id` gerado no servidor: `onFinish` do `streamText` grava tokens/modelo (e cria a linha se chegar primeiro); `onEnd` do stream grava `content` com as parts. A ordem entre as duas não importa.
+- `compactPartsForStorage` (`lib/ai/persist-parts.ts`): remove partes `custom` (`anthropic.message_start`) e `encryptedContent`; trunca saídas > 8 KB.
+- O leitor público de compartilhamento (`lib/db/queries/shared-conversation.ts`) aplica a mesma regra de formato novo (não estava no escopo original; sem isso o relatório perderia `source-document` e a ordem das parts).
+- Resposta interrompida: o texto parcial é salvo; tokens **não** entram nos totais (comportamento anterior, o `onFinish` do `streamText` não roda em abort).
+- `end_page_number` das citações de PDF é **exclusivo** (medido: trecho inteiro na p. 3 vem como `3..4`); `extractSources` converte pra intervalo inclusivo.
+

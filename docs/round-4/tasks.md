@@ -68,13 +68,13 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 ## Tasks
 
 ### R4-001 · Salvar resposta completa + contrato de fontes (P0)
-- [ ] R4001 `toUIMessageStreamResponse({ sendSources: true, ... })` no `/api/chat`
-- [ ] R4002 Persistir a `UIMessage` final (parts completas) no `onFinish` do stream; truncar `output` de ferramentas > 8 KB ao salvar
-- [ ] R4003 Remover a gravação "só texto" do `onFinish` do `streamText`, mantendo tokens, usage, audit, tool_invocations, embedding e compactação
-- [ ] R4004 `listMessagesWithAttachments`: usar parts salvas quando existirem; manter remontagem pras mensagens antigas
-- [ ] R4005 `lib/sources/types.ts` + `lib/sources/extract.ts` (`extractSources`, `sourceLabel`) conforme contrato
-- [ ] R4006 Testes unitários de `extractSources` (web, documento com página, duplicadas, mensagem sem fontes)
-- [ ] R4007 Validação: recarregar mantém parts idênticas ao stream (Playwright logado)
+- [x] R4001 `toUIMessageStreamResponse({ sendSources: true, ... })` no `/api/chat`
+- [x] R4002 Persistir a `UIMessage` final (parts completas) no `onFinish` do stream; truncar `output` de ferramentas > 8 KB ao salvar
+- [x] R4003 Remover a gravação "só texto" do `onFinish` do `streamText`, mantendo tokens, usage, audit, tool_invocations, embedding e compactação
+- [x] R4004 `listMessagesWithAttachments`: usar parts salvas quando existirem; manter remontagem pras mensagens antigas
+- [x] R4005 `lib/sources/types.ts` + `lib/sources/extract.ts` (`extractSources`, `sourceLabel`) conforme contrato
+- [x] R4006 Testes unitários de `extractSources` (web, documento com página, duplicadas, mensagem sem fontes)
+- [x] R4007 Validação: recarregar mantém parts idênticas ao stream (Playwright logado)
 
 ### R4-002 · Spike de citações (P0)
 - [x] R4011 Script isolado em `scripts/spike-citations.ts` (nativa `20260209`, nativa básica `20250305`, Tavily)

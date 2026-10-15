@@ -18,6 +18,7 @@ import { scheduleCompaction } from "@/lib/ai/compaction"
 import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
 import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
 import { embedAndStoreMessage } from "@/lib/db/queries/search"
+import { compactPartsForStorage } from "@/lib/ai/persist-parts"
 
 export const maxDuration = 60
 
@@ -230,6 +231,13 @@ export async function POST(req: NextRequest) {
   const userSystem = conv.systemPrompt?.trim()
   const combinedSystem = userSystem ? `${BASE_SYSTEM}\n\n${userSystem}` : BASE_SYSTEM
 
+  // Id da resposta gerado aqui: é o mesmo no cliente (generateMessageId do
+  // stream) e em messages.id. Duas callbacks gravam a mesma linha via upsert:
+  // onFinish (tokens, uso, ferramentas) e onEnd (parts completas, inclusive
+  // citações). A ordem entre elas não importa; resposta interrompida também
+  // fica salva pelo onEnd.
+  const assistantMessageId = crypto.randomUUID()
+
   const result = streamText({
     model: getModel(model),
     system: combinedSystem,
@@ -245,12 +253,19 @@ export async function POST(req: NextRequest) {
       const [inserted] = await db
         .insert(messages)
         .values({
+          id: assistantMessageId,
           conversationId,
           role: "assistant",
+          // Provisório: o onEnd grava as parts completas (se chegar antes, o
+          // conflito abaixo preserva o content dele).
           content: [{ type: "text", text }] as unknown as object,
           inputTokens,
           outputTokens,
           model,
+        })
+        .onConflictDoUpdate({
+          target: messages.id,
+          set: { inputTokens, outputTokens, model },
         })
         .returning({ id: messages.id })
 
@@ -305,6 +320,20 @@ export async function POST(req: NextRequest) {
   // atualiza o indicador de contexto sem refresh nem polling. É o mesmo valor
   // gravado em conversations.total_*_tokens no onFinish acima.
   return result.toUIMessageStreamResponse({
+    sendSources: true,
+    generateMessageId: () => assistantMessageId,
+    onEnd: async ({ responseMessage, isAborted }) => {
+      if (responseMessage.role !== "assistant" || responseMessage.parts.length === 0) return
+      const content = compactPartsForStorage(responseMessage.parts) as unknown as object
+      try {
+        await db
+          .insert(messages)
+          .values({ id: assistantMessageId, conversationId, role: "assistant", content, model })
+          .onConflictDoUpdate({ target: messages.id, set: { content } })
+      } catch (err) {
+        console.error("[chat] falha ao salvar parts da resposta", { isAborted, err })
+      }
+    },
     messageMetadata: ({ part }) => {
       if (part.type !== "finish") return undefined
       return {

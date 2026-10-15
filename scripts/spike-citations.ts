@@ -80,7 +80,7 @@ async function run(mode: Mode, messages: ModelMessage[], label: string) {
         if (cites?.length) {
           sequence.push(`C${cites.length}`)
           for (const c of cites.slice(0, 2)) {
-            sources.push(`cite(${c.type}) ${c.url ?? ""} p=${c.start_page_number ?? "-"} "${(c.cited_text ?? "").slice(0, 70)}"`)
+            sources.push(`cite(${c.type}) ${c.url ?? ""} p=${c.start_page_number ?? "-"}..${(c as { end_page_number?: number }).end_page_number ?? "-"} "${(c.cited_text ?? "").slice(0, 70)}"`)
           }
         }
         break

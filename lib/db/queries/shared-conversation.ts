@@ -98,6 +98,16 @@ export async function loadSharedConversation(
     const basePartsRaw = Array.isArray(m.content)
       ? (m.content as Array<TextPart | FilePart>)
       : []
+
+    // Formato novo (SPEC-R4-001): parts completas salvas, inclusive citações.
+    if (m.role === "assistant" && basePartsRaw.some((p) => p.type !== "text")) {
+      messages.push({
+        id: m.id,
+        role: "assistant",
+        parts: basePartsRaw as unknown as UIMessage["parts"],
+      })
+      continue
+    }
     const textParts = basePartsRaw.filter((p): p is TextPart => p.type === "text")
     const fileParts: FilePart[] = basePartsRaw.filter(
       (p): p is FilePart => p.type === "file"

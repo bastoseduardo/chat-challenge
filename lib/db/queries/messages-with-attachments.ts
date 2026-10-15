@@ -43,6 +43,18 @@ export async function listMessagesWithAttachments(
   for (const row of rows) {
     if (row.isSummary) continue
     const basePartsRaw = Array.isArray(row.content) ? (row.content as Part[]) : []
+
+    // Formato novo (SPEC-R4-001): a resposta foi salva com as parts completas
+    // do stream (ferramentas, fontes, citações). Usar como está. Mensagens
+    // antigas só têm texto e são remontadas abaixo a partir de tool_invocations.
+    if (row.role === "assistant" && basePartsRaw.some((p) => p.type !== "text")) {
+      result.push({
+        id: row.id,
+        role: "assistant",
+        parts: basePartsRaw as unknown as UIMessage["parts"],
+      })
+      continue
+    }
     const textParts: TextPart[] = basePartsRaw.filter(
       (p): p is TextPart => p.type === "text"
     )
