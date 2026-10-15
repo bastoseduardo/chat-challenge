@@ -16,7 +16,7 @@ export async function generateMetadata({
   const data = await loadSharedConversation(token)
   if (!data) return { title: "Compartilhamento não encontrado" }
   return {
-    title: `${data.conversation.title} | Chat Challenge`,
+    title: data.conversation.title,
     description: "Conversa compartilhada em modo somente leitura",
   }
 }

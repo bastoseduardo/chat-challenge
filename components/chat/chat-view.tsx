@@ -118,6 +118,12 @@ export function ChatView({
     resize: "smooth",
   })
 
+  // Título da aba acompanha o da conversa (inclusive depois do replaceState
+  // da nova conversa e de renomear), sem consultar o servidor.
+  useEffect(() => {
+    if (started) document.title = `${title} | Seshat`
+  }, [started, title])
+
   // Resultado da busca (/c/<id>#msg-<id>): rola até a mensagem em vez do fim.
   useEffect(() => {
     const hash = window.location.hash

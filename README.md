@@ -1,4 +1,7 @@
-# Chat Challenge
+# Seshat
+
+> Assistente de pesquisa que mostra de onde veio cada resposta. O nome vem de Seshat, deusa
+> egípcia da escrita e dos registros, a "senhora da casa dos livros".
 
 Aplicação de chat multi-conversa com integração a tools externas, suporte a imagens/PDFs,
 compartilhamento read-only, auto-compactação de contexto, governança de uso e audit log.

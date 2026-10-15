@@ -5,6 +5,8 @@ import { AuditLog } from "@/components/admin/audit-log"
 import { createClient } from "@/lib/supabase/server"
 import { isAdmin } from "@/lib/auth/admin"
 
+export const metadata = { title: "Audit log" }
+
 export default async function AuditPage() {
   const supabase = await createClient()
   const {

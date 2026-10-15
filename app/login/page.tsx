@@ -48,7 +48,7 @@ export default function LoginPage() {
         <div className="max-w-md space-y-8">
           <div className="flex items-center gap-2.5">
             <span aria-hidden className="h-6 w-1 rounded-full bg-tool" />
-            <span className="text-lg font-semibold">Chat Challenge</span>
+            <span className="text-lg font-semibold">Seshat</span>
           </div>
 
           <div className="space-y-3">

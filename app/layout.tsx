@@ -25,8 +25,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Chat Challenge",
-  description: "Chat multi-conversa com tools, vision e MCP",
+  title: { default: "Seshat", template: "%s | Seshat" },
+  description: "Assistente de pesquisa que mostra de onde veio cada resposta",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

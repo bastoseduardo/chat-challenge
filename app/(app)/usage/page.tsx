@@ -7,6 +7,8 @@ import { sumTokensToday } from "@/lib/usage/counter"
 import { getCaps } from "@/lib/usage/caps"
 import { cn } from "@/lib/utils"
 
+export const metadata = { title: "Uso de hoje" }
+
 const WARN_AT = 80
 
 export default async function UsagePage() {

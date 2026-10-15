@@ -8,6 +8,8 @@ import { userSettings } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { SettingsForm } from "@/components/settings/settings-form"
 
+export const metadata = { title: "Configurações" }
+
 export default async function SettingsPage() {
   const supabase = await createClient()
   const {
