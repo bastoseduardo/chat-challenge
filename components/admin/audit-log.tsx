@@ -119,7 +119,12 @@ export function AuditLog() {
           {(error as Error).message}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div
+          className="overflow-x-auto rounded-lg border"
+          tabIndex={0}
+          role="region"
+          aria-label="Eventos de auditoria"
+        >
           <table className={cn("w-full min-w-[860px] text-sm", isFetching && "opacity-70")}>
             <thead className="border-b bg-muted/60 text-left">
               <tr>

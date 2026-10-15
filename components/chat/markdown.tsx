@@ -73,6 +73,8 @@ function CodeBlock({ children }: { children?: ReactNode }) {
 
 const components: Components = {
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  // Tabelas rolam na horizontal (CSS); tabIndex deixa a rolagem acessível pelo teclado.
+  table: ({ children }) => <table tabIndex={0}>{children}</table>,
   a: ({ children, href }) => (
     <a href={href} target="_blank" rel="noreferrer">
       {children}
