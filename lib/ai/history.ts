@@ -61,6 +61,17 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
             data: url,
             mediaType: a.mimeType,
             filename: a.originalName ?? undefined,
+            // PDFs com citações nativas: a resposta traz trecho + página
+            // (SPEC-R4-003). A API exige citações em todos os documentos ou
+            // em nenhum; ligamos em todos os PDFs.
+            ...(a.mimeType === "application/pdf" && {
+              providerOptions: {
+                anthropic: {
+                  citations: { enabled: true },
+                  title: a.originalName ?? "documento.pdf",
+                },
+              },
+            }),
           })
         } catch (err) {
           console.error("[history] attachment URL failed:", err)

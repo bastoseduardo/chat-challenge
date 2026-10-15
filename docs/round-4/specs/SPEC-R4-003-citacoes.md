@@ -51,3 +51,13 @@ Fontes no relatório compartilhado (R4-007 usa `SourcesList`). Guardar trecho (R
 ## Riscos
 - Popover em texto que ainda está em streaming pisca. **Mitigação:** só renderizar marcações quando a parte de texto seguinte já começou ou o stream acabou.
 - Busca nativa usa ~5x mais tokens de entrada que o Tavily (~US$ 0,05 por pergunta com busca, medido no spike). **Mitigação:** `maxUses` e leitura de página só quando a busca não basta.
+
+## Notas da implementação (2026-10-15)
+- Texto: blocos de texto consecutivos viram **um** Markdown com marcadores invisíveis (`n`) no fim de cada trecho citado; o plugin `rehypeCitationMarks` troca o marcador por `<sup data-cite>`, renderizado como `CitationMarks`. Evita quebrar listas e parágrafos.
+- `lib/sources/extract.ts` ganhou `textWithCitations`, `appendBeforeTrailingSpace` e `footnotesMarkdown` (usados em copiar, export e, na R4-007, no relatório).
+- Cartão da fonte: clique/toque/Enter sempre **abrem** (não alternam): no toque o `mouseenter` já abre e o toggle padrão fecharia. Fecha com Esc, clique fora ou saindo com o mouse.
+- Trecho citado limpo de Markdown no cartão (o provider manda o trecho cru da página, às vezes tabela).
+- Linha de confiança: "N fontes, a mais recente de mês/ano" (idade da página vem da busca). **Desvio da spec:** sem ferramentas, não mostra nada (mostrar "Sem fontes externas" em toda resposta de conversa comum era ruído); com busca e sem citação, "Pesquisou, mas não citou fontes".
+- `WEB_TOOLS_PROVIDER=tavily` volta pro Tavily/Jina.
+- Validado: web (marcações, cartão, lista, trilha ↔ marcação, recarregar), PDF ("attention.pdf, p. 3"), teclado, toque no mobile, export com rodapé, axe sem violações (escuro desktop, claro mobile).
+

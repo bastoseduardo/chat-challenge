@@ -7,6 +7,8 @@ import {
 import { db } from "@/lib/db/client"
 import { attachments, toolInvocations } from "@/lib/db/schema"
 import { asc, eq } from "drizzle-orm"
+import type { UIMessage } from "ai"
+import { extractSources, footnotesMarkdown, textWithCitations } from "@/lib/sources/extract"
 
 export async function GET(
   req: NextRequest,
@@ -107,7 +109,19 @@ export async function GET(
     }
 
     lines.push("")
-    lines.push(extractText(m.content))
+    // Respostas com citações (SPEC-R4-003): marcas [^n] no texto e notas de
+    // rodapé com as fontes. Mensagens antigas seguem só com o texto.
+    const asMessage = { id: m.id, role: m.role, parts: Array.isArray(m.content) ? m.content : [] } as unknown as UIMessage
+    const sources = m.role === "assistant" ? extractSources(asMessage) : []
+    if (sources.length) {
+      lines.push(textWithCitations(asMessage, (ix) => ix.map((n) => `[^${m.id.slice(0, 4)}-${n}]`).join("")))
+      lines.push("")
+      lines.push(
+        footnotesMarkdown(sources).replace(/^\[\^(\d+)\]/gm, (_, n) => `[^${m.id.slice(0, 4)}-${n}]`)
+      )
+    } else {
+      lines.push(m.role === "assistant" ? textWithCitations(asMessage) || extractText(m.content) : extractText(m.content))
+    }
     lines.push("")
     lines.push("---")
     lines.push("")

@@ -87,16 +87,16 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [x] R4014 Escrever a decisão A/B em `docs/round-4/decisions/citations.md` e atualizar a R4-003
 
 ### R4-003 · Citações (P0)
-- [ ] R4021 Anexos PDF com `providerOptions.anthropic.citations` + título no `buildContext`
-- [ ] R4022 Web: ferramentas nativas básicas (`webSearch_20250305` + `webFetch_20250910`), decisão A do spike
-- [ ] R4023 Ajuste da instrução de sistema sobre fontes
-- [ ] R4024 `components/chat/citations.tsx`: marcação `[n]`, cartão da fonte (popover acessível), bloco "Fontes"
-- [ ] R4025 `AssistantMessage` intercala marcações com o texto conforme a ordem das parts
-- [ ] R4026 Ligação trilha ↔ marcações (hover/focus destaca o par)
-- [ ] R4027 Sinal de confiança no rodapé da resposta
-- [ ] R4028 Copiar resposta e export Markdown com notas de rodapé
-- [ ] R4029 `research-trail` reconhece `web_search`/`web_fetch` nativas e conta resultados
-- [ ] R4030 Validação: pergunta com busca + pergunta sobre PDF, recarregar, axe, mobile
+- [x] R4021 Anexos PDF com `providerOptions.anthropic.citations` + título no `buildContext`
+- [x] R4022 Web: ferramentas nativas básicas (`webSearch_20250305` + `webFetch_20250910`), decisão A do spike
+- [x] R4023 Ajuste da instrução de sistema sobre fontes
+- [x] R4024 `components/chat/citations.tsx`: marcação `[n]`, cartão da fonte (popover acessível), bloco "Fontes"
+- [x] R4025 `AssistantMessage` intercala marcações com o texto conforme a ordem das parts
+- [x] R4026 Ligação trilha ↔ marcações (hover/focus destaca o par)
+- [x] R4027 Sinal de confiança no rodapé da resposta
+- [x] R4028 Copiar resposta e export Markdown com notas de rodapé
+- [x] R4029 `research-trail` reconhece `web_search`/`web_fetch` nativas e conta resultados
+- [x] R4030 Validação: pergunta com busca + pergunta sobre PDF, recarregar, axe, mobile
 
 ### R4-004 · Caderno: dados e API (P1)
 - [x] R4041 Schema: colunas novas em `user_notes` (SQL esperado na spec)
