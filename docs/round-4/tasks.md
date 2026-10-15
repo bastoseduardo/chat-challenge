@@ -77,21 +77,21 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [ ] R4007 Validação: recarregar mantém parts idênticas ao stream (Playwright logado)
 
 ### R4-002 · Spike de citações (P0)
-- [ ] R4011 Script isolado em `scripts/spike-citations.ts` (fora do app) com busca nativa `webSearch_20260209` + `webFetch_20260209`
-- [ ] R4012 Mesmo script com PDF anexado + `citations.enabled`
-- [ ] R4013 Registrar: ordem das parts (texto e source intercalados?), custo, latência, 5 perguntas reais vs Tavily
-- [ ] R4014 Escrever a decisão A/B em `docs/round-4/decisions/citations.md` e atualizar a R4-003
+- [x] R4011 Script isolado em `scripts/spike-citations.ts` (nativa `20260209`, nativa básica `20250305`, Tavily)
+- [x] R4012 Mesmo script com PDF anexado + `citations.enabled`
+- [x] R4013 Registrar: ordem das parts (texto e source intercalados?), custo, latência, 5 perguntas reais vs Tavily
+- [x] R4014 Escrever a decisão A/B em `docs/round-4/decisions/citations.md` e atualizar a R4-003
 
 ### R4-003 · Citações (P0)
 - [ ] R4021 Anexos PDF com `providerOptions.anthropic.citations` + título no `buildContext`
-- [ ] R4022 Web: aplicar decisão do spike (A: ferramentas nativas; B: Tavily numerado + `[n]`)
+- [ ] R4022 Web: ferramentas nativas básicas (`webSearch_20250305` + `webFetch_20250910`), decisão A do spike
 - [ ] R4023 Ajuste da instrução de sistema sobre fontes
 - [ ] R4024 `components/chat/citations.tsx`: marcação `[n]`, cartão da fonte (popover acessível), bloco "Fontes"
 - [ ] R4025 `AssistantMessage` intercala marcações com o texto conforme a ordem das parts
 - [ ] R4026 Ligação trilha ↔ marcações (hover/focus destaca o par)
 - [ ] R4027 Sinal de confiança no rodapé da resposta
 - [ ] R4028 Copiar resposta e export Markdown com notas de rodapé
-- [ ] R4029 `research-trail` reconhece as ferramentas nativas (se decisão A)
+- [ ] R4029 `research-trail` reconhece `web_search`/`web_fetch` nativas e conta resultados
 - [ ] R4030 Validação: pergunta com busca + pergunta sobre PDF, recarregar, axe, mobile
 
 ### R4-004 · Caderno: dados e API (P1)
