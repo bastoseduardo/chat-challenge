@@ -208,10 +208,10 @@ Cada fase pode ir pra produção sozinha. A ordem prioriza a dor citada (reloads
 - [x] **Audit (admin):** tabela densa com filtros no topo e paginação sem recarregar (`useSearchParams` + query).
 
 ### Fase 6: Verificação (~1h)
-- [ ] Screenshots antes e depois (skill `webapp-testing`/Playwright) em 375, 768, 1024 e 1440px (breakpoints do checklist do Pro Max), temas claro e escuro.
-- [ ] Atualizar os 4 testes E2E: o fluxo de nova conversa muda (sem `?autostart`).
-- [ ] Novo E2E: renomear, apagar e desfazer sem request RSC.
-- [ ] Checklist de entrega do UI/UX Pro Max: contraste, foco visível, toque ≥44px, reduced motion, sem CLS no streaming.
+- [x] Screenshots antes (`main`) e depois (`ux/round-3`) em desktop 1440 e mobile 390, tema escuro: login, nova conversa, conversa, uso e configurações. Ficam em `docs/round-3/screenshots/` (fora do git: mostram conversas e o email da conta).
+- [x] E2E de login atualizado; novo E2E opcional `optimistic-sidebar.spec.ts` (renomear, apagar e desfazer sem request RSC), roda com `E2E_DEV_LOGIN=1`.
+- [x] Auditoria axe-core (WCAG 2.2 AA) em 20 telas, claro/escuro e desktop/mobile: zero violações depois de corrigir o botão fechar dos diálogos (16px → 32px) e as áreas com rolagem horizontal sem foco.
+- [x] Renomeado pra **Seshat** (título da aba, login, compartilhamento, README).
 
 **Total estimado:** ~16h.
 
