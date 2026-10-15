@@ -81,7 +81,7 @@ export function ToolCallCard({ toolName, part }: ToolCallCardProps) {
       >
         <Icon className={cn("w-4 h-4 shrink-0", config.iconClass)} />
         <span className="font-medium flex-1">{prettifyToolName(toolName)}</span>
-        <span className={cn("text-[10px] uppercase tracking-wider", config.labelClass)}>
+        <span className={cn("text-xs", config.labelClass)}>
           {config.label}
         </span>
         {hasPayload && (
@@ -153,17 +153,17 @@ const STATE_CONFIG: Record<
   },
   "input-available": {
     icon: Wrench,
-    iconClass: "text-blue-500",
+    iconClass: "text-tool",
     label: "executando",
-    labelClass: "text-blue-500",
-    borderClass: "border-blue-500/30",
+    labelClass: "text-tool",
+    borderClass: "border-tool/40",
   },
   "output-available": {
     icon: Check,
-    iconClass: "text-green-600 dark:text-green-500",
+    iconClass: "text-tool",
     label: "concluído",
-    labelClass: "text-green-600 dark:text-green-500",
-    borderClass: "border-green-600/30",
+    labelClass: "text-muted-foreground",
+    borderClass: "border-border",
   },
   "output-error": {
     icon: AlertCircle,

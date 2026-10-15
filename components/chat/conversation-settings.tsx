@@ -104,7 +104,7 @@ export function ConversationSettings({
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-sm">{m.label}</span>
                       {model === m.id && (
-                        <span className="text-[10px] uppercase tracking-wider text-primary">
+                        <span className="text-xs text-primary">
                           selecionado
                         </span>
                       )}

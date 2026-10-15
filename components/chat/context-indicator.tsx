@@ -101,7 +101,7 @@ export function ContextIndicator({
   const barColor = over
     ? "bg-destructive"
     : near
-    ? "bg-amber-500"
+    ? "bg-warning"
     : "bg-primary"
 
   return (

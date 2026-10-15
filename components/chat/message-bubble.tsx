@@ -9,7 +9,6 @@ import { ToolCallCard } from "./tool-call-card"
 import { Copy, RefreshCw, Check } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
-import "highlight.js/styles/github-dark.css"
 
 interface MessageBubbleProps {
   message: UIMessage
@@ -52,10 +51,7 @@ export function MessageBubble({ message, isLast, onRegenerate }: MessageBubblePr
             return (
               <div
                 key={i}
-                className={cn(
-                  "prose prose-sm max-w-none",
-                  isUser ? "prose-invert" : "dark:prose-invert"
-                )}
+                className={cn("markdown", !isUser && "markdown-reading")}
               >
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
                   {part.text}

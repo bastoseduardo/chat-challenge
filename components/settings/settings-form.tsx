@@ -65,8 +65,8 @@ export function SettingsForm({ initial }: Props) {
                 <div className="font-medium text-sm flex items-center gap-2">
                   {t.label}
                   {t.requiresConsent && (
-                    <span className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded">
-                      requer consentimento
+                    <span className="text-xs text-tool bg-tool-soft px-1.5 py-0.5 rounded-sm">
+                      Requer consentimento
                     </span>
                   )}
                 </div>
