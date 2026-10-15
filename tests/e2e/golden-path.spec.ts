@@ -17,7 +17,8 @@ test.describe("Golden path smoke", () => {
 
   test("/login renderiza com botão Google", async ({ page }) => {
     await page.goto("/login")
-    await expect(page.getByRole("heading", { name: /chat challenge/i })).toBeVisible()
+    await expect(page.getByText("Chat Challenge", { exact: true })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(
       page.getByRole("button", { name: /continuar com google/i })
     ).toBeVisible()

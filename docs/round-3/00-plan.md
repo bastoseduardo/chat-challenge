@@ -201,11 +201,11 @@ Cada fase pode ir pra produção sozinha. A ordem prioriza a dor citada (reloads
 *Nota da Fase 4: a CLI do shadcn gerou `sidebar`, `dropdown-menu` e `tooltip` com sintaxe do Tailwind 3 (`w-[--var]`, `theme(spacing.4)`), que não funciona no Tailwind 4; convertido pra `w-(--var)` e `--spacing(4)`.*
 
 ### Fase 5: Páginas secundárias (~2h)
-- [ ] **Login:** tela com identidade própria, mostrando a trilha de pesquisa como demonstração estática do produto em vez de ícone e texto genérico.
-- [ ] **Configurações:** seções com rótulos visíveis; editor de MCP com validação de JSON inline perto do campo; feedback "Salvo" no botão.
-- [ ] **Uso:** números em linha (entrada, saída, custo) + barra de cota com marca de 80%, em vez de três cards idênticos.
-- [ ] **Share público:** mesma tipografia e trilha, somente leitura, com CTA "Entrar para conversar".
-- [ ] **Audit (admin):** tabela densa com filtros no topo e paginação sem recarregar (`useSearchParams` + query).
+- [x] **Login:** tela com identidade própria, mostrando a trilha de pesquisa como demonstração estática do produto em vez de ícone e texto genérico.
+- [x] **Configurações:** seções com rótulos visíveis; editor de MCP com validação de JSON inline perto do campo; feedback "Salvo" no botão.
+- [x] **Uso:** números em linha (entrada, saída, custo) + barra de cota com marca de 80%, em vez de três cards idênticos.
+- [x] **Share público:** mesma tipografia e trilha, somente leitura, com CTA "Entrar para conversar".
+- [x] **Audit (admin):** tabela densa com filtros no topo e paginação sem recarregar (`useSearchParams` + query).
 
 ### Fase 6: Verificação (~1h)
 - [ ] Screenshots antes e depois (skill `webapp-testing`/Playwright) em 375, 768, 1024 e 1440px (breakpoints do checklist do Pro Max), temas claro e escuro.
