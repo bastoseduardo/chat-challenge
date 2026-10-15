@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useStepHighlight } from "./citations"
 
 export interface ToolStep {
   key: string
@@ -49,8 +50,17 @@ function describe(step: ToolStep, phase: Phase): string {
   switch (tool) {
     case "web_search": {
       const q = str(input.query)
-      return `${running ? "Buscando" : "Buscou"} na web${q ? ` “${q}”` : ""}`
+      // Busca nativa devolve a lista de resultados; a do Tavily, { results }.
+      const out = step.output as unknown
+      const results = Array.isArray(out)
+        ? out.length
+        : Array.isArray((out as { results?: unknown[] } | undefined)?.results)
+          ? (out as { results: unknown[] }).results.length
+          : undefined
+      const count = !running && results ? `, ${results} ${results === 1 ? "resultado" : "resultados"}` : ""
+      return `${running ? "Buscando" : "Buscou"} na web${q ? ` “${q}”` : ""}${count}`
     }
+    case "web_fetch":
     case "web_scrape": {
       const host = hostOf(str(input.url))
       return `${running ? "Lendo" : "Leu"} ${host ?? "uma página"}`
@@ -98,10 +108,18 @@ function format(value: unknown): string {
 function Step({ step, index }: { step: ToolStep; index: number }) {
   const phase = phaseOf(step.state)
   const [open, setOpen] = useState(phase === "error")
+  const { highlighted, onHoverStep } = useStepHighlight()
   const hasDetail = step.input !== undefined || step.output !== undefined || !!step.errorText
 
   return (
-    <li className="relative -ml-[10px] pl-7">
+    <li
+      className="relative -ml-[10px] rounded-r-sm pl-7 transition-colors data-[highlight]:bg-tool-soft"
+      data-highlight={highlighted.has(step.key) || undefined}
+      onMouseEnter={() => onHoverStep(step.key)}
+      onMouseLeave={() => onHoverStep(null)}
+      onFocus={() => onHoverStep(step.key)}
+      onBlur={() => onHoverStep(null)}
+    >
       <span
         aria-hidden
         className={cn(
@@ -172,6 +190,8 @@ export function ResearchTrail({ steps, live }: { steps: ToolStep[]; live?: boole
   const summary =
     `${steps.length} ${steps.length === 1 ? "passo" : "passos"} de pesquisa` +
     (failed ? `, ${failed} com erro` : "")
+  const { highlighted } = useStepHighlight()
+  const anyHighlighted = steps.some((s) => highlighted.has(s.key))
 
   return (
     <div className="my-3 font-sans">
@@ -180,7 +200,8 @@ export function ResearchTrail({ steps, live }: { steps: ToolStep[]; live?: boole
           type="button"
           onClick={() => setExpanded(!isOpen)}
           aria-expanded={isOpen}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors pointer-coarse:py-2"
+          data-highlight={anyHighlighted || undefined}
+          className="flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground hover:text-foreground transition-colors data-[highlight]:bg-tool-soft data-[highlight]:text-foreground pointer-coarse:py-2"
         >
           <span aria-hidden className="h-3.5 w-0.5 rounded-full bg-tool" />
           {summary}

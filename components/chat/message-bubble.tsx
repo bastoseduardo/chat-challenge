@@ -1,13 +1,21 @@
 "use client"
 
 import type { UIMessage } from "ai"
-import { memo, useState, type ReactNode } from "react"
+import { memo, useMemo, useState, type ReactNode } from "react"
 import { Copy, RefreshCw, Check, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Markdown } from "./markdown"
 import { ResearchTrail, type ToolStep } from "./research-trail"
 import { ImageLightbox } from "./image-lightbox"
+import { CitationProvider, SourcesList, citeMarker, trustLine } from "./citations"
+import {
+  appendBeforeTrailingSpace,
+  citationsByPart,
+  extractSources,
+  sourceLabel,
+  textWithCitations,
+} from "@/lib/sources/extract"
 
 interface MessageBubbleProps {
   message: UIMessage
@@ -38,13 +46,6 @@ export function toolStepOf(part: AnyPart, key: string): ToolStep | null {
 
 function pick(part: AnyPart) {
   return { state: part.state, input: part.input, output: part.output, errorText: part.errorText }
-}
-
-function extractText(message: UIMessage): string {
-  return message.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("\n")
 }
 
 function FilePart({ part }: { part: AnyPart & { url?: unknown; mediaType?: string; filename?: string } }) {
@@ -92,46 +93,89 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: Messag
   const [copied, setCopied] = useState(false)
   const parts = message.parts as AnyPart[]
 
-  // Agrupa chamadas de ferramenta consecutivas numa única trilha, mantendo a
-  // ordem real em relação ao texto (multi-step: busca → texto → nova busca).
+  const { sources, sourcesByStep, pageAges, usedWeb } = useMemo(
+    () => citationData(message),
+    [message]
+  )
+  const byPart = useMemo(() => citationsByPart(message), [message])
+
+  // Blocos na ordem real: ferramentas consecutivas viram uma trilha; blocos de
+  // texto consecutivos viram UM markdown (o provider divide o texto por trecho
+  // citado; renderizar cada pedaço separado quebraria listas e parágrafos), com
+  // o marcador de citação no fim de cada trecho citado.
   const blocks: ReactNode[] = []
-  let pending: ToolStep[] = []
-  const flush = (i: number) => {
-    if (pending.length === 0) return
+  let pendingSteps: ToolStep[] = []
+  let pendingText = ""
+  let textHasCitations = false
+  const flushSteps = (i: number) => {
+    if (pendingSteps.length === 0) return
     const isTail = i === parts.length
-    blocks.push(<ResearchTrail key={`trail-${i}`} steps={pending} live={isStreaming && isTail} />)
-    pending = []
+    blocks.push(<ResearchTrail key={`trail-${i}`} steps={pendingSteps} live={isStreaming && isTail} />)
+    pendingSteps = []
+  }
+  const flushText = (i: number) => {
+    if (!pendingText.trim()) {
+      pendingText = ""
+      return
+    }
+    blocks.push(<Markdown key={`text-${i}`} text={pendingText} reading citations={textHasCitations} />)
+    pendingText = ""
+    textHasCitations = false
   }
   parts.forEach((p, i) => {
     const step = toolStepOf(p, p.toolCallId ?? `${i}`)
     if (step) {
-      pending.push(step)
+      flushText(i)
+      pendingSteps.push(step)
       return
     }
-    flush(i)
     if (p.type === "text") {
-      blocks.push(<Markdown key={i} text={(p as { text: string }).text} reading />)
-    } else if (p.type === "file") {
+      flushSteps(i)
+      const text = (p as { text: string }).text
+      const indexes = byPart.get(i)
+      if (indexes?.length) {
+        pendingText += appendBeforeTrailingSpace(text, citeMarker(indexes))
+        textHasCitations = true
+      } else {
+        pendingText += text
+      }
+      return
+    }
+    if (p.type === "file") {
+      flushSteps(i)
+      flushText(i)
       blocks.push(<FilePart key={i} part={p} />)
     }
+    // source-url/source-document/step-start/custom: sem bloco próprio
   })
-  flush(parts.length)
+  flushSteps(parts.length)
+  flushText(parts.length)
 
   async function copyText() {
-    const text = extractText(message)
+    const text = textWithCitations(message, (ix) => ix.map((n) => `[${n}]`).join(""))
     if (!text) return
-    await navigator.clipboard.writeText(text)
+    const footer = sources.length
+      ? "\n\nFontes:\n" +
+        sources
+          .map((s) => `[${s.index}] ${s.title}${s.url ? ` (${s.url})` : `, ${sourceLabel(s)}`}`)
+          .join("\n")
+      : ""
+    await navigator.clipboard.writeText(text + footer)
     setCopied(true)
     toast.success("Resposta copiada")
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const trust = trustLine(sources, pageAges, usedWeb)
+
   const canRegenerate = isLast && onRegenerate && !isStreaming
   const hasText = parts.some((p) => p.type === "text" && (p as { text: string }).text.trim())
 
   return (
+    <CitationProvider sources={sources} sourcesByStep={sourcesByStep}>
     <div id={`msg-${message.id}`} className="group scroll-mt-6 space-y-1">
       {blocks}
+      {!isStreaming && <SourcesList sources={sources} />}
       {!isStreaming && hasText && (
         <div
           className={cn(
@@ -148,10 +192,46 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: Messag
               <RefreshCw className="size-4" />
             </ActionButton>
           )}
+          {trust && <span className="ml-1.5 text-xs text-muted-foreground">{trust}</span>}
         </div>
       )}
     </div>
+    </CitationProvider>
   )
+}
+
+/**
+ * Fontes citadas e o que a trilha precisa pra destacar: quais fontes cada
+ * passo gerou (resultados da busca ou URL lida) e a idade das páginas.
+ */
+function citationData(message: UIMessage) {
+  const sources = extractSources(message)
+  const parts = message.parts as AnyPart[]
+  const pageAges = new Map<string, string | null>()
+  const sourcesByStep = new Map<string, number[]>()
+  let usedWeb = false
+
+  parts.forEach((p, i) => {
+    if (p.type === "source-url") {
+      const sp = p as unknown as { url: string; providerMetadata?: { anthropic?: { pageAge?: string | null } } }
+      pageAges.set(sp.url, sp.providerMetadata?.anthropic?.pageAge ?? null)
+    }
+    const step = toolStepOf(p, p.toolCallId ?? `${i}`)
+    if (!step) return
+    const name = step.toolName
+    if (name !== "web_search" && name !== "web_fetch" && name !== "web_scrape") return
+    usedWeb = true
+    const urls = new Set<string>()
+    if (Array.isArray(step.output)) {
+      for (const r of step.output as Array<{ url?: string }>) if (r?.url) urls.add(r.url)
+    }
+    const inputUrl = (step.input as { url?: string } | undefined)?.url
+    if (inputUrl) urls.add(inputUrl)
+    const indexes = sources.filter((s) => s.url && urls.has(s.url)).map((s) => s.index)
+    if (indexes.length) sourcesByStep.set(step.key, indexes)
+  })
+
+  return { sources, sourcesByStep, pageAges, usedWeb }
 }
 
 function ActionButton({

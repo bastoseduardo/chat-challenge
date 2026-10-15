@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils"
 import { succeeded } from "@/lib/conversations/store"
 
 const ALL_TOOLS = [
-  { id: "web_search", label: "Pesquisar na web", description: "Busca resultados atuais (Tavily)", google: false },
-  { id: "web_scrape", label: "Ler páginas", description: "Abre um link e lê o conteúdo (Jina Reader)", google: false },
+  { id: "web_search", label: "Pesquisar na web", description: "Busca resultados atuais e cita as fontes na resposta", google: false },
+  { id: "web_scrape", label: "Ler páginas", description: "Abre uma página encontrada e lê o conteúdo", google: false },
   { id: "get_current_time", label: "Data e hora", description: "Consulta o horário em qualquer fuso", google: false },
   { id: "drive_search_files", label: "Buscar no Google Drive", description: "Lista e procura arquivos do seu Drive", google: true },
   { id: "drive_read_file", label: "Ler arquivos do Google Drive", description: "Lê Docs, Sheets e arquivos de texto", google: true },

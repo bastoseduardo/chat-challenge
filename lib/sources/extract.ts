@@ -155,3 +155,45 @@ export function sourceLabel(s: Source): string {
   const { start, end } = s.pages
   return `${s.title}, p. ${start === end ? start : `${start}–${end}`}`
 }
+
+/** Insere `mark` no fim do texto, antes de espaços e quebras finais. */
+export function appendBeforeTrailingSpace(text: string, mark: string): string {
+  const match = /\s*$/.exec(text)
+  const cut = match ? match.index : text.length
+  return text.slice(0, cut) + mark + text.slice(cut)
+}
+
+/**
+ * Junta os TextUIPart da mensagem num texto só. O provider divide a resposta em
+ * vários blocos (um por trecho citado), que são concatenados sem separador;
+ * entre etapas (ferramenta ou step-start no meio) entra uma quebra de parágrafo.
+ * `mark` recebe os números das fontes de cada trecho citado e devolve o que
+ * inserir no fim dele (ex.: "[^1]" no export, "[1]" ao copiar).
+ */
+export function textWithCitations(
+  message: UIMessage,
+  mark: (indexes: number[]) => string = () => ""
+): string {
+  const byPart = citationsByPart(message)
+  let out = ""
+  let boundary = false
+  ;(message.parts as AnyPart[]).forEach((part, i) => {
+    if (part.type === "text") {
+      const text = (part as { text?: string }).text ?? ""
+      if (boundary && out.trim()) out = out.replace(/\s*$/, "") + "\n\n"
+      boundary = false
+      const indexes = byPart.get(i)
+      out += indexes?.length ? appendBeforeTrailingSpace(text, mark(indexes)) : text
+    } else if (part.type === "step-start" || part.type.startsWith("tool-") || part.type === "dynamic-tool") {
+      boundary = true
+    }
+  })
+  return out.trim()
+}
+
+/** Notas de rodapé em Markdown: "[^1]: Título, https://..." */
+export function footnotesMarkdown(sources: Source[]): string {
+  return sources
+    .map((s) => `[^${s.index}]: ${s.kind === "web" ? `${s.title}, ${s.url}` : sourceLabel(s)}`)
+    .join("\n")
+}

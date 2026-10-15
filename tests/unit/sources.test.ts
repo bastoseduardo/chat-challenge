@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { UIMessage } from "ai"
-import { citationsByPart, extractSources, sourceLabel } from "@/lib/sources/extract"
+import { citationsByPart, extractSources, footnotesMarkdown, sourceLabel, textWithCitations } from "@/lib/sources/extract"
 
 // Formato real observado no spike (docs/round-4/decisions/citations.md).
 const web = (url: string, citedText: string, title = "Título") => ({
@@ -92,5 +92,32 @@ describe("citationsByPart", () => {
     expect(map.get(1)).toEqual([1])
     expect(map.has(2)).toBe(false)
     expect(map.get(3)).toEqual([2, 1])
+  })
+})
+
+describe("textWithCitations", () => {
+  it("junta blocos citados sem quebrar a frase e separa etapas com parágrafo", () => {
+    const m = msg([
+      { type: "step-start" },
+      { type: "text", text: "Vou pesquisar." },
+      { type: "tool-web_search", toolCallId: "t", state: "output-available", input: {}, output: [] },
+      { type: "step-start" },
+      { type: "text", text: "A versão é **18**.", citations: [web("https://a.com", "x")] },
+      { type: "text", text: " " },
+      { type: "text", text: "Suporte até 2030.\n", citations: [web("https://b.com", "y")] },
+    ])
+    expect(textWithCitations(m, (ix) => ix.map((i) => `[${i}]`).join(""))).toBe(
+      "Vou pesquisar.\n\nA versão é **18**.[1] Suporte até 2030.[2]"
+    )
+  })
+
+  it("gera notas de rodapé pra web e PDF", () => {
+    const m = msg([
+      { type: "text", text: "a", citations: [web("https://www.postgresql.org/x", "q", "Versioning")] },
+      { type: "text", text: "b", citations: [doc(3, 4, "dmodel")] },
+    ])
+    expect(footnotesMarkdown(extractSources(m))).toBe(
+      "[^1]: Versioning, https://www.postgresql.org/x\n[^2]: paper.pdf, p. 3"
+    )
   })
 })

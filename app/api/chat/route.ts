@@ -227,7 +227,9 @@ export async function POST(req: NextRequest) {
   // Prompt mínimo pra garantir que, após tool calls, o modelo sempre escreva
   // uma resposta final em texto pro usuário (evita conversas que terminam só
   // com tool_calls e sem text).
-  const BASE_SYSTEM = `You can call tools to gather info. ALWAYS end your turn with a plain-text reply to the user summarizing what you found; never stop mid-tool-chain without a response.`
+  const BASE_SYSTEM = `You can call tools to gather info. ALWAYS end your turn with a plain-text reply to the user summarizing what you found; never stop mid-tool-chain without a response.
+
+When you use web search, web fetch or attached documents, ground factual claims in those sources; citations are attached to your text automatically, so do not write your own reference markers or source lists. Prefer the search results; fetch a page only when the snippets are not enough. If part of the answer comes only from your own knowledge, say so briefly.`
   const userSystem = conv.systemPrompt?.trim()
   const combinedSystem = userSystem ? `${BASE_SYSTEM}\n\n${userSystem}` : BASE_SYSTEM
 
