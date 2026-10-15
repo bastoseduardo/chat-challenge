@@ -1,4 +1,4 @@
-import { saveNote, listNotes, searchNotes } from "@/lib/db/queries/notes"
+import { createNote, listNotes, searchNotes } from "@/lib/db/queries/notes"
 
 export const USER_NOTES_SERVER_INFO = {
   name: "user-notes",
@@ -117,7 +117,8 @@ async function route(
       if (name === "save_note") {
         const content = String(args.content ?? "").trim()
         if (!content) return textContent("Erro: conteúdo vazio")
-        const row = await saveNote(userId, content)
+        // Mesma tabela e embedding do Caderno: aparece em /caderno.
+        const row = await createNote(userId, { content })
         return textContent(
           `Nota salva (id=${row.id.slice(0, 8)}, em ${row.createdAt.toISOString()})`
         )
@@ -125,7 +126,7 @@ async function route(
 
       if (name === "list_notes") {
         const limit = Math.min(50, Math.max(1, Number(args.limit ?? 20)))
-        const rows = await listNotes(userId, limit)
+        const rows = await listNotes({ userId, limit })
         if (rows.length === 0) return textContent("Nenhuma nota salva.")
         const lines = rows.map(
           (r, i) =>

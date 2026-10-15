@@ -15,6 +15,8 @@ export type AuditEventType =
   | "compaction.executed"
   | "quota.exceeded"
   | "mcp.server.connected"
+  | "note.created"
+  | "note.deleted"
 
 export interface AuditPayload {
   userId: string | null

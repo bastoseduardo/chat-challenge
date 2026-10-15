@@ -12,7 +12,7 @@ Marque `[x]` ao concluir. IDs `R4xxx` são estáveis: as specs referenciam os me
 1. **Validar em dev, logado.** `npm run dev` + botão "Entrar sem Google (dev)" (`/auth/dev-login`, exige `DEV_LOGIN_EMAIL` no `.env.local`). Validar com Playwright (screenshots desktop 1440 e mobile 390, claro e escuro) antes de dar a spec por pronta.
 2. **O banco de dev É o banco de produção.** Tudo que for criado em teste (conversas, notas, shares) é apagado no fim da validação. Nunca rodar SQL destrutivo.
 3. **Migrações só aditivas.** Colunas novas sempre `NULL`-áveis ou com default; nada de renomear ou apagar coluna. O app da `main` precisa continuar funcionando com o schema novo.
-4. **Migração gerada no merge, não antes.** Durante a spec, editar `lib/db/schema.ts` e escrever o SQL esperado na própria spec. O `npm run db:generate` roda só no momento do merge, na ordem de merge (seção "Ordem de merge"), pra numeração `000N` não colidir. Funções e policies manuais vão em `drizzle/sql/00N_*.sql`, mesma regra.
+4. **Migrações escritas à mão, idempotentes.** *(Revisado na R4-004.)* O journal do drizzle-kit parou na 0002 (a 0003 já foi manual), então `db:generate` está fora de sincronia e **não deve ser usado**: geraria de novo colunas que já existem. Cada spec escreve `drizzle/migrations/000N_<nome>.sql` com `IF NOT EXISTS`, atualiza `lib/db/schema.ts` pra refletir, e aplica com `npx tsx scripts/apply-sql.ts <arquivo>`. Número `N` reservado na ordem de merge (0004 = R4-004; próximas: 0005 R4-007, 0006 R4-006, 0007 R4-008, 0008 R4-012). Funções e policies manuais seguem em `drizzle/sql/00N_*.sql`.
 5. **Commit por task ou grupo de tasks, push só quando o autor pedir.**
 6. **`globals.css` não recarrega em dev** (Turbopack + loader do Tailwind no Windows): depois de editar, parar o servidor, apagar `.next/dev` e subir de novo.
 7. **Qualidade mínima de saída:** `npx tsc --noEmit` limpo, `npx eslint app components lib hooks tests` sem erros, `npm test` e `npx playwright test` passando, axe sem violações nas telas tocadas (script em `docs/round-4/specs/SPEC-R4-000-contratos.md`).
@@ -95,13 +95,13 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [ ] R4030 Validação: pergunta com busca + pergunta sobre PDF, recarregar, axe, mobile
 
 ### R4-004 · Caderno: dados e API (P1)
-- [ ] R4041 Schema: colunas novas em `user_notes` (SQL esperado na spec)
-- [ ] R4042 `lib/db/queries/notes.ts`: criar, listar, buscar (texto + vetor), atualizar, soft delete, restaurar
-- [ ] R4043 Embedding em background ao criar/editar
-- [ ] R4044 Rotas `GET/POST /api/notes`, `PATCH/DELETE /api/notes/[id]`, `GET /api/notes/search`
-- [ ] R4045 MCP `user-notes` passa a usar as mesmas queries (notas do chat aparecem no Caderno)
-- [ ] R4046 Audit: `note.created`, `note.deleted`
-- [ ] R4047 Testes unitários da validação de payload
+- [x] R4041 Schema: colunas novas em `user_notes` (SQL esperado na spec)
+- [x] R4042 `lib/db/queries/notes.ts`: criar, listar, buscar (texto + vetor), atualizar, soft delete, restaurar
+- [x] R4043 Embedding em background ao criar/editar
+- [x] R4044 Rotas `GET/POST /api/notes`, `PATCH/DELETE /api/notes/[id]`, `GET /api/notes/search`
+- [x] R4045 MCP `user-notes` passa a usar as mesmas queries (notas do chat aparecem no Caderno)
+- [x] R4046 Audit: `note.created`, `note.deleted`
+- [x] R4047 Testes unitários da validação de payload
 
 ### R4-005 · Caderno: interface (P1)
 - [ ] R4051 Item "Caderno" na sidebar + rota `/caderno` no shell
