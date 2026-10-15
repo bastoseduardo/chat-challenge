@@ -65,6 +65,10 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 
 ---
 
+## Pendências fora das specs
+
+- [ ] **SEC-01 · Levar a correção da rota MCP pra `main` (produção).** `POST /api/mcp/user-notes` em produção aceita `X-User-Id` sem verificar a sessão: um usuário logado consegue ler e gravar notas de outra conta. Corrigido na R4-004 (`app/api/mcp/user-notes/route.ts`, commit `20b536b`). Falta aplicar na `main`: cherry-pick só desse arquivo num hotfix e deploy. Exposição atual limitada (app OAuth em modo de teste, só usuários cadastrados). **Fazer antes da avaliação.**
+
 ## Tasks
 
 ### R4-001 · Salvar resposta completa + contrato de fontes (P0)
