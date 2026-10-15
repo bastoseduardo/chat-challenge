@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { redirect } from "next/navigation"
+import { AppHeader } from "@/components/app-header"
 import { createClient } from "@/lib/supabase/server"
 import { sumTokensToday } from "@/lib/usage/counter"
 import { getCaps } from "@/lib/usage/caps"
@@ -22,11 +23,10 @@ export default async function UsagePage() {
   const pct = Math.min(100, Math.round((totalTokens / caps.userDaily) * 100))
 
   return (
+    <>
+      <AppHeader title={<h1 className="truncate px-1 font-semibold">Uso de hoje</h1>} />
     <div className="flex-1 overflow-y-auto">
     <div className="w-full max-w-3xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Uso de hoje</h1>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -79,5 +79,6 @@ export default async function UsagePage() {
       </Card>
     </div>
     </div>
+    </>
   )
 }

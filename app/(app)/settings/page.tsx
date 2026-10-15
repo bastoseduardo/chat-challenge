@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { redirect } from "next/navigation"
+import { AppHeader } from "@/components/app-header"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { userSettings } from "@/lib/db/schema"
@@ -21,11 +22,10 @@ export default async function SettingsPage() {
     .limit(1)
 
   return (
+    <>
+      <AppHeader title={<h1 className="truncate px-1 font-semibold">Configurações</h1>} />
     <div className="flex-1 overflow-y-auto">
     <div className="w-full max-w-3xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Configurações</h1>
-      </div>
 
       <SettingsForm
         initial={{
@@ -35,5 +35,6 @@ export default async function SettingsPage() {
       />
     </div>
     </div>
+    </>
   )
 }

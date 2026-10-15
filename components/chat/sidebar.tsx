@@ -2,48 +2,108 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useTheme } from "next-themes"
+import {
+  BarChart3,
+  LogOut,
+  MessageSquarePlus,
+  Moon,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  Sun,
+  Trash2,
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Plus, MoreHorizontal, Trash2, Pencil, LogOut, Settings, BarChart3, MessageSquarePlus, Search } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { ThemeToggle } from "@/components/theme/toggle"
-import { SearchDialog } from "@/components/search/search-dialog"
-import { useConversations, useConversationActions } from "@/lib/conversations/store"
+import {
+  Sidebar as SidebarRoot,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar"
+import { CommandPalette } from "@/components/search/command-palette"
+import {
+  useConversationActions,
+  useConversations,
+  type ConversationSummary,
+} from "@/lib/conversations/store"
 
 interface SidebarProps {
   user: { id: string; email: string; name: string; avatar: string | null }
 }
 
+const GROUPS = ["Hoje", "Ontem", "Últimos 7 dias", "Mais antigas"] as const
+
+function groupOf(iso: string, now: Date): (typeof GROUPS)[number] {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const t = new Date(iso).getTime()
+  const day = 86_400_000
+  if (t >= startOfToday) return "Hoje"
+  if (t >= startOfToday - day) return "Ontem"
+  if (t >= startOfToday - 6 * day) return "Últimos 7 dias"
+  return "Mais antigas"
+}
+
+// Classe do item ativo: barra de tinta à esquerda, além do fundo.
+const activeBar = "data-[active=true]:shadow-[inset_2px_0_0_var(--primary)]"
+
 export function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+  const { resolvedTheme, setTheme } = useTheme()
   const { data: conversations = [] } = useConversations()
   const actions = useConversationActions()
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState("")
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const signOutRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
-        setSearchOpen((o) => !o)
+        setPaletteOpen((o) => !o)
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [])
 
+  const grouped = useMemo(() => {
+    const now = new Date()
+    const map = new Map<string, ConversationSummary[]>()
+    for (const c of conversations) {
+      const g = groupOf(c.updatedAt, now)
+      map.set(g, [...(map.get(g) ?? []), c])
+    }
+    return GROUPS.filter((g) => map.has(g)).map((g) => ({ label: g, items: map.get(g)! }))
+  }, [conversations])
+
+  // No mobile a sidebar é uma gaveta: fecha ao navegar.
+  function closeOnMobile() {
+    if (isMobile) setOpenMobile(false)
+  }
+
   function newChat() {
-    // Não cria DB row aqui — só vai pro staging. A conversa é criada
-    // no servidor apenas quando o usuário envia a primeira mensagem.
+    closeOnMobile()
     router.push("/c/new")
   }
 
@@ -61,143 +121,183 @@ export function Sidebar({ user }: SidebarProps) {
     void actions.rename(id, title)
   }
 
+  const isDark = resolvedTheme === "dark"
+
   return (
-    <aside className="w-64 border-r flex flex-col shrink-0 bg-card min-h-0 overflow-hidden">
-      <div className="p-3 border-b space-y-2">
-        <Button onClick={newChat} className="w-full justify-start gap-2" size="sm">
-          <Plus className="w-4 h-4" />
-          Nova conversa
-        </Button>
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-background text-sm text-muted-foreground hover:bg-accent transition-colors"
-        >
-          <Search className="w-3.5 h-3.5" />
-          <span className="flex-1 text-left">Buscar...</span>
-          <kbd className="hidden sm:inline-flex items-center text-[10px] border px-1 py-0.5 rounded">
-            ⌘K
-          </kbd>
-        </button>
-      </div>
-
-      {/* Scroll nativo — Radix ScrollArea quebra layout com flex + truncate */}
-      {/* (envolvia o conteúdo em display:table, expandindo pela largura do item mais largo) */}
-      <div className="flex-1 overflow-y-auto">
-        <nav className="p-2 space-y-0.5">
-          {conversations.length === 0 && (
-            <div className="px-3 py-6 text-center space-y-3">
-              <MessageSquarePlus className="w-8 h-8 mx-auto text-muted-foreground opacity-50" />
-              <p className="text-xs text-muted-foreground">
-                Nenhuma conversa ainda. Clique em &quot;Nova conversa&quot; pra começar.
-              </p>
-            </div>
-          )}
-          {conversations.map((c) => {
-            const active = pathname === `/c/${c.id}`
-            if (renamingId === c.id) {
-              return (
-                <input
-                  key={c.id}
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  aria-label="Novo título da conversa"
-                  onBlur={() => submitRename(c.id, c.title)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") submitRename(c.id, c.title)
-                    if (e.key === "Escape") setRenamingId(null)
-                  }}
-                  className="w-full px-2 py-1.5 rounded text-sm bg-background border"
-                />
-              )
-            }
-            return (
-              <div
-                key={c.id}
-                className={cn(
-                  "group flex items-center rounded hover:bg-accent gap-0.5",
-                  active && "bg-accent"
-                )}
-              >
-                <Link
-                  href={`/c/${c.id}`}
-                  title={c.title}
-                  className="flex-1 min-w-0 px-2 py-1.5 text-sm truncate"
-                >
-                  {c.title}
-                </Link>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 mr-0.5 rounded hover:bg-background text-muted-foreground"
-                      aria-label="Opções da conversa"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setRenameValue(c.title)
-                        setRenamingId(c.id)
-                      }}
-                    >
-                      <Pencil className="w-4 h-4 mr-2" />
-                      Renomear
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => deleteConv(c.id)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Apagar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )
-          })}
-        </nav>
-      </div>
-
-      <div className="border-t p-3 space-y-1">
-        <Link
-          href="/usage"
-          className="flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-accent"
-        >
-          <BarChart3 className="w-4 h-4" />
-          Uso
-        </Link>
-        <Link
-          href="/settings"
-          className="flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-accent"
-        >
-          <Settings className="w-4 h-4" />
-          Configurações
-        </Link>
-        <div className="flex items-center gap-2 pt-2">
-          <Avatar className="w-7 h-7">
-            {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
-            <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0 text-xs">
-            <div className="truncate font-medium">{user.name}</div>
-            <div className="truncate text-muted-foreground">{user.email}</div>
-          </div>
-          <ThemeToggle />
-          <form action="/auth/signout" method="post">
-            <button
-              type="submit"
-              className="p-1.5 rounded hover:bg-accent"
-              aria-label="Sair"
+    <SidebarRoot collapsible="icon">
+      <SidebarHeader className="gap-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={newChat}
+              tooltip="Nova conversa"
+              className="bg-primary font-medium text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground pointer-coarse:h-11"
             >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </form>
-        </div>
-      </div>
-      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
-    </aside>
+              <Plus />
+              <span>Nova conversa</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => setPaletteOpen(true)}
+              tooltip="Buscar (Ctrl+K)"
+              className="border bg-background text-muted-foreground pointer-coarse:h-11"
+            >
+              <Search />
+              <span className="flex-1">Buscar</span>
+              <kbd className="rounded-sm border px-1 text-[11px] group-data-[collapsible=icon]:hidden pointer-coarse:hidden">
+                Ctrl K
+              </kbd>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent className="group-data-[collapsible=icon]:hidden">
+        {conversations.length === 0 && (
+          <div className="space-y-3 px-4 py-8 text-center">
+            <MessageSquarePlus className="mx-auto size-7 text-muted-foreground" aria-hidden />
+            <p className="text-sm text-muted-foreground">
+              Suas conversas aparecem aqui.
+            </p>
+          </div>
+        )}
+        {grouped.map((group) => (
+          <SidebarGroup key={group.label} className="py-1">
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarMenu>
+              {group.items.map((c) => {
+                const active = pathname === `/c/${c.id}`
+                if (renamingId === c.id) {
+                  return (
+                    <SidebarMenuItem key={c.id}>
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        aria-label="Novo título da conversa"
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => submitRename(c.id, c.title)}
+                        onFocus={(e) => e.currentTarget.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") submitRename(c.id, c.title)
+                          if (e.key === "Escape") setRenamingId(null)
+                        }}
+                        className="h-8 w-full rounded-md border border-ring bg-background px-2 text-sm outline-none"
+                      />
+                    </SidebarMenuItem>
+                  )
+                }
+                return (
+                  <SidebarMenuItem key={c.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      className={`${activeBar} pointer-coarse:h-11`}
+                    >
+                      <Link href={`/c/${c.id}`} title={c.title} onClick={closeOnMobile}>
+                        <span>{c.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <SidebarMenuAction
+                          showOnHover
+                          aria-label={`Opções de ${c.title}`}
+                          className="pointer-coarse:size-9"
+                        >
+                          <MoreHorizontal />
+                        </SidebarMenuAction>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="right" align="start">
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setRenameValue(c.title)
+                            setRenamingId(c.id)
+                          }}
+                        >
+                          <Pencil className="mr-2 size-4" />
+                          Renomear
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => deleteConv(c.id)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          Apagar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === "/usage"}
+              tooltip="Uso"
+              className={`${activeBar} pointer-coarse:h-11`}
+            >
+              <Link href="/usage" onClick={closeOnMobile}>
+                <BarChart3 />
+                <span>Uso</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === "/settings"}
+              tooltip="Configurações"
+              className={`${activeBar} pointer-coarse:h-11`}
+            >
+              <Link href="/settings" onClick={closeOnMobile}>
+                <Settings />
+                <span>Configurações</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg" tooltip={user.name} aria-label="Conta e preferências">
+                  <Avatar className="size-8 rounded-md">
+                    {user.avatar && <AvatarImage src={user.avatar} alt="" />}
+                    <AvatarFallback className="rounded-md">
+                      {user.name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="grid min-w-0 flex-1 text-left leading-tight">
+                    <span className="truncate text-sm font-medium">{user.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                  </span>
+                  <MoreHorizontal className="ml-auto size-4 text-muted-foreground" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side={isMobile ? "top" : "right"} align="end" className="min-w-52">
+                <DropdownMenuItem onSelect={() => setTheme(isDark ? "light" : "dark")}>
+                  {isDark ? <Sun className="mr-2 size-4" /> : <Moon className="mr-2 size-4" />}
+                  {isDark ? "Usar tema claro" : "Usar tema escuro"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => signOutRef.current?.requestSubmit()}>
+                  <LogOut className="mr-2 size-4" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <form ref={signOutRef} action="/auth/signout" method="post" className="hidden" />
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </SidebarRoot>
   )
 }

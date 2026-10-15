@@ -1,5 +1,9 @@
+import { AppHeader } from "@/components/app-header"
+
 export default function AuditLoading() {
   return (
+    <>
+    <AppHeader title={<div className="h-5 w-32 rounded bg-muted animate-pulse" />} />
     <div className="flex-1 overflow-y-auto"><div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
       <div className="h-8 w-40 bg-muted rounded animate-pulse" />
       <div className="h-10 w-full bg-muted rounded animate-pulse" />
@@ -14,5 +18,6 @@ export default function AuditLoading() {
         ))}
       </div>
     </div></div>
+    </>
   )
 }

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { redirect } from "next/navigation"
+import { AppHeader } from "@/components/app-header"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
@@ -45,12 +46,12 @@ export default async function AuditPage({
   const total = count ?? 0
 
   return (
+    <>
+      <AppHeader title={<h1 className="truncate px-1 font-semibold">Audit log</h1>}>
+        <Badge variant="outline">{total} eventos</Badge>
+      </AppHeader>
     <div className="flex-1 overflow-y-auto">
     <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Audit log</h1>
-        <Badge variant="outline">{total} eventos</Badge>
-      </div>
 
       <form className="flex gap-2 items-end">
         <div className="space-y-1">
@@ -154,6 +155,7 @@ export default async function AuditPage({
       </div>
     </div>
     </div>
+    </>
   )
 }
 

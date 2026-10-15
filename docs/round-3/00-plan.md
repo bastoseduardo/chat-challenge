@@ -179,23 +179,26 @@ Cada fase pode ir pra produção sozinha. A ordem prioriza a dor citada (reloads
 - **Pronto quando:** num fluxo de nova conversa → 3 mensagens → renomear → apagar → desfazer, a aba Network não mostra nenhum request RSC (`?_rsc=`) além do prefetch de links.
 
 ### Fase 3: Conversa e composer (~4h)
-- [ ] Separar `MessageBubble` em `UserMessage` (compacta, à direita) e `AssistantMessage` (serif, largura de leitura, sem fundo).
-- [ ] Trilha de pesquisa (seção 2.5) no lugar do `ToolCallCard` empilhado, com estado ativo, recolhida e expandida.
-- [ ] Estado de espera contextual: "Buscando na web…" / "Lendo página…", derivado da parte de ferramenta ativa, com `aria-live="polite"`.
-- [ ] Blocos de código com rótulo de linguagem e botão copiar.
-- [ ] Ações da mensagem (copiar, regenerar) sempre visíveis em toque e em `focus-within`, com `aria-label`.
-- [ ] Erro inline na mensagem que falhou, com "Tentar de novo" (`regenerate`). O toast fica só pra erros fora do chat.
-- [ ] Composer: textarea que cresce até 8 linhas, arrastar e soltar na área do chat, anexos na primeira mensagem, `Esc` pra parar, dica de atalhos fora do placeholder, ícone de arquivo no lugar do emoji 📎.
-- [ ] Imagens anexadas abrem em lightbox (Dialog).
-- [ ] Estado vazio: sugestões ligadas às ferramentas reais (web, PDF, Drive, notas), cada uma com ícone e verbo.
+- [x] Separar `MessageBubble` em `UserMessage` (compacta, à direita) e `AssistantMessage` (serif, largura de leitura, sem fundo).
+- [x] Trilha de pesquisa (seção 2.5) no lugar do `ToolCallCard` empilhado, com estado ativo, recolhida e expandida.
+- [x] Estado de espera contextual: "Buscando na web…" / "Lendo página…", derivado da parte de ferramenta ativa, com `aria-live="polite"`.
+- [x] Blocos de código com rótulo de linguagem e botão copiar.
+- [x] Ações da mensagem (copiar, regenerar) sempre visíveis em toque e em `focus-within`, com `aria-label`.
+- [x] Erro inline na mensagem que falhou, com "Tentar de novo" (`regenerate`). O toast fica só pra erros fora do chat.
+- [x] Composer: textarea que cresce até 8 linhas, arrastar e soltar na área do chat, anexos na primeira mensagem, `Esc` pra parar, dica de atalhos fora do placeholder, ícone de arquivo no lugar do emoji 📎.
+- [x] Imagens anexadas abrem em lightbox (Dialog).
+- [x] Mensagens com âncora `#msg-<id>`: resultado da busca rola até a mensagem (antes abria só a conversa).
+- [x] Estado vazio: sugestões ligadas às ferramentas reais (web, PDF, Drive, notas), cada uma com ícone e verbo.
 
 ### Fase 4: Navegação e responsivo (~3h)
-- [ ] Trocar a sidebar caseira pelo componente **`Sidebar` do shadcn** (`SidebarProvider` + `SidebarTrigger` + `collapsible="icon"`), conforme a regra shadcn do Pro Max. Isso traz de graça o `Sheet` no mobile, o modo só-ícones de 56px no tablet, o atalho `⌘B` e a persistência do estado em cookie (sem flash no SSR, ao contrário de `localStorage`).
-- [ ] Grupos Hoje / Ontem / 7 dias / Mais antigas com `SidebarGroup`; renomear inline com foco visível; item ativo marcado com barra de tinta.
-- [ ] Mobile: alvos de toque ≥44px; `h-dvh`; sem scroll horizontal (tabelas markdown com `overflow-x-auto`).
-- [ ] ⌘K vira paleta de comandos com o **`Command` do shadcn** (base `cmdk`), usando `CommandGroup` para separar "Conversas" (busca semântica) de "Ações" (nova conversa, configurações, uso, alternar tema, exportar, compartilhar).
-- [ ] Header: título editável no lugar; exportar e compartilhar num menu `↗` no mobile.
-- [ ] Skip link "Ir para a conversa"; ordem de tab revisada.
+- [x] Trocar a sidebar caseira pelo componente **`Sidebar` do shadcn** (`SidebarProvider` + `SidebarTrigger` + `collapsible="icon"`), conforme a regra shadcn do Pro Max. Isso traz de graça o `Sheet` no mobile, o modo só-ícones de 56px no tablet, o atalho `⌘B` e a persistência do estado em cookie (sem flash no SSR, ao contrário de `localStorage`).
+- [x] Grupos Hoje / Ontem / 7 dias / Mais antigas com `SidebarGroup`; renomear inline com foco visível; item ativo marcado com barra de tinta.
+- [x] Mobile: alvos de toque ≥44px; `h-dvh`; sem scroll horizontal (tabelas markdown com `overflow-x-auto`).
+- [x] ⌘K vira paleta de comandos com o **`Command` do shadcn** (base `cmdk`), usando `CommandGroup` para separar "Conversas" (busca semântica) de "Ações" (nova conversa, configurações, uso, alternar tema, exportar, compartilhar).
+- [x] Header: título editável no lugar; exportar e compartilhar num menu `↗` no mobile.
+- [x] Skip link "Ir para a conversa"; ordem de tab revisada.
+
+*Nota da Fase 4: a CLI do shadcn gerou `sidebar`, `dropdown-menu` e `tooltip` com sintaxe do Tailwind 3 (`w-[--var]`, `theme(spacing.4)`), que não funciona no Tailwind 4; convertido pra `w-(--var)` e `--spacing(4)`.*
 
 ### Fase 5: Páginas secundárias (~2h)
 - [ ] **Login:** tela com identidade própria, mostrando a trilha de pesquisa como demonstração estática do produto em vez de ícone e texto genérico.

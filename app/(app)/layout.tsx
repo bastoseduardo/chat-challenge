@@ -1,8 +1,10 @@
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { listConversations } from "@/lib/db/queries/conversations"
 import { Sidebar } from "@/components/chat/sidebar"
 import { QueryProvider } from "@/components/providers/query-provider"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 // Shell único do app (chat, configurações, uso, audit): a sidebar persiste
 // entre rotas. A lista de conversas vem do servidor só na primeira carga;
@@ -14,7 +16,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const conversations = await listConversations(user.id)
+  const [conversations, cookieStore] = await Promise.all([listConversations(user.id), cookies()])
+  // Estado recolhido/expandido da sidebar no desktop, gravado pelo componente
+  // em cookie pra não piscar no SSR.
+  const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
 
   return (
     <QueryProvider
@@ -24,7 +29,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         updatedAt: c.updatedAt.toISOString(),
       }))}
     >
-      <div className="h-dvh flex overflow-hidden">
+      <SidebarProvider
+        defaultOpen={sidebarOpen}
+        className="h-dvh min-h-0 overflow-hidden"
+        style={{ "--sidebar-width": "16.5rem" } as React.CSSProperties}
+      >
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:shadow-md"
+        >
+          Ir para o conteúdo
+        </a>
         <Sidebar
           user={{
             id: user.id,
@@ -33,8 +48,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             avatar: user.user_metadata?.avatar_url ?? null,
           }}
         />
-        <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">{children}</main>
-      </div>
+        <SidebarInset id="main" className="min-h-0 min-w-0 overflow-hidden">
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
     </QueryProvider>
   )
 }

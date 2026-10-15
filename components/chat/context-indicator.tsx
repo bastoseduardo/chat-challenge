@@ -108,7 +108,7 @@ export function ContextIndicator({
         title="Ver detalhes do contexto"
         aria-label={`Contexto usado: ${pct}%`}
       >
-        <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className="hidden sm:block w-24 h-1.5 bg-muted rounded-full overflow-hidden">
           <div
             className={cn("h-full transition-all", barColor)}
             style={{ width: `${pct}%` }}

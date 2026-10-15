@@ -71,7 +71,7 @@ function UserMessage({ message }: { message: UIMessage }) {
   const parts = message.parts as AnyPart[]
   const files = parts.filter((p) => p.type === "file")
   return (
-    <div className="flex justify-end">
+    <div id={`msg-${message.id}`} className="flex scroll-mt-6 justify-end">
       <div className="max-w-[85%] space-y-2 rounded-lg border bg-card px-4 py-2.5 sm:max-w-[75%]">
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -130,7 +130,7 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: Messag
   const hasText = parts.some((p) => p.type === "text" && (p as { text: string }).text.trim())
 
   return (
-    <div className="group space-y-1">
+    <div id={`msg-${message.id}`} className="group scroll-mt-6 space-y-1">
       {blocks}
       {!isStreaming && hasText && (
         <div

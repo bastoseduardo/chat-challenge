@@ -2,11 +2,19 @@
 
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useStickToBottom } from "use-stick-to-bottom"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, ArrowDown, Share2, Loader2, Download, Upload } from "lucide-react"
+import { AlertCircle, ArrowDown, Share2, Loader2, Download, MoreHorizontal, Upload } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { AppHeader } from "@/components/app-header"
+import { EditableTitle } from "./editable-title"
 import { toast } from "sonner"
 import { MessageBubble, toolStepOf } from "./message-bubble"
 import { ShareDialog } from "./share-dialog"
@@ -105,10 +113,23 @@ export function ChatView({
   }, [conversationId])
 
   const attach = useAttachments(conversationId, ensureConversation)
-  const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({
+  const { scrollRef, contentRef, isAtBottom, scrollToBottom, stopScroll } = useStickToBottom({
     initial: "instant",
     resize: "smooth",
   })
+
+  // Resultado da busca (/c/<id>#msg-<id>): rola até a mensagem em vez do fim.
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash.startsWith("#msg-")) return
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById(hash.slice(1))
+      if (!el) return
+      stopScroll()
+      el.scrollIntoView({ block: "start" })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [stopScroll])
 
   const { messages, sendMessage, regenerate, stop, status, error } = useChat({
     id: conversationId,
@@ -297,15 +318,11 @@ export function ChatView({
 
   return (
     <>
-      <header className="border-b px-4 sm:px-6 h-14 flex items-center justify-between gap-2 shrink-0">
-        <h1
-          title={title}
-          className="font-semibold truncate flex-1 min-w-0 whitespace-nowrap"
-        >
-          {title}
-        </h1>
+      <AppHeader
+        title={<EditableTitle conversationId={conversationId} title={title} editable={started} />}
+      >
         {started && (
-          <div className="flex items-center gap-1 shrink-0">
+          <>
             <ContextIndicator
               conversationId={conversationId}
               initialTotalTokens={totalTokens}
@@ -316,23 +333,52 @@ export function ChatView({
               initialModel={model}
               initialSystemPrompt={systemPrompt}
             />
-            <Button variant="ghost" size="icon" asChild>
+            <Button variant="ghost" size="icon" asChild className="hidden sm:inline-flex">
               <a
                 href={`/api/conversations/${conversationId}/export?format=md`}
                 download
                 title="Exportar como Markdown"
                 aria-label="Exportar como Markdown"
               >
-                <Download className="w-4 h-4" />
+                <Download className="size-4" />
               </a>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)}>
-              <Share2 className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Compartilhar</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShareOpen(true)}
+              className="hidden sm:inline-flex"
+            >
+              <Share2 className="size-4 mr-2" />
+              Compartilhar
             </Button>
-          </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="sm:hidden pointer-coarse:size-11"
+                  aria-label="Mais ações"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <a href={`/api/conversations/${conversationId}/export?format=md`} download>
+                    <Download className="mr-2 size-4" />
+                    Exportar como Markdown
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setShareOpen(true)}>
+                  <Share2 className="mr-2 size-4" />
+                  Compartilhar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
-      </header>
+      </AppHeader>
 
       <div
         className="relative flex min-h-0 flex-1 flex-col"
