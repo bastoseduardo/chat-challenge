@@ -30,4 +30,30 @@ describe("compactPartsForStorage", () => {
     expect(p.output.truncated).toBe(true)
     expect(p.output.preview.length).toBe(2000)
   })
+
+  it("guarda só URL e título do resultado do web_fetch, mesmo com página grande", () => {
+    const url = "https://www.postgresql.org/support/versioning/"
+    const [p] = compactPartsForStorage(
+      parts([
+        {
+          type: "tool-web_fetch",
+          toolCallId: "t3",
+          state: "output-available",
+          input: { url },
+          output: {
+            type: "web_fetch_result",
+            url,
+            retrievedAt: "2026-10-16T10:00:00Z",
+            content: { type: "document", title: "PostgreSQL: Versioning Policy", source: { type: "text", data: "z".repeat(50_000) } },
+          },
+        },
+      ])
+    ) as unknown as Array<{ output: unknown }>
+    expect(p.output).toEqual({
+      type: "web_fetch_result",
+      url,
+      retrievedAt: "2026-10-16T10:00:00Z",
+      content: { type: "document", title: "PostgreSQL: Versioning Policy" },
+    })
+  })
 })
