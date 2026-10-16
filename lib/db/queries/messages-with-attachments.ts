@@ -52,6 +52,7 @@ export async function listMessagesWithAttachments(
         id: row.id,
         role: "assistant",
         parts: basePartsRaw as unknown as UIMessage["parts"],
+        ...(row.model && { metadata: { model: row.model } }),
       })
       continue
     }
@@ -107,6 +108,7 @@ export async function listMessagesWithAttachments(
       id: row.id,
       role: row.role as UIMessage["role"],
       parts: parts as unknown as UIMessage["parts"],
+      ...(row.role === "assistant" && row.model && { metadata: { model: row.model } }),
     })
   }
 

@@ -13,6 +13,7 @@ import { ImageLightbox } from "./image-lightbox"
 import { CitationProvider, SourcesList, citeMarker, trustLine } from "./citations"
 import { SelectionToSave } from "./selection-to-save"
 import { EditUserMessage } from "./edit-user-message"
+import { AnswerMeta } from "./answer-meta"
 import { useNoteActions } from "@/lib/notes/store"
 import {
   appendBeforeTrailingSpace,
@@ -259,7 +260,7 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate, conversa
             </ActionButton>
           )}
           {conversationId && <SaveAnswerButton message={message} conversationId={conversationId} />}
-          {trust && <span className="ml-1.5 text-xs text-muted-foreground">{trust}</span>}
+          <AnswerMeta message={message} trust={trust} />
         </div>
       )}
     </div>

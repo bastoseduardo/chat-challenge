@@ -358,6 +358,8 @@ When you use web search, web fetch or attached documents, ground factual claims 
           sendSources: true,
           generateMessageId: () => assistantMessageId,
           messageMetadata: ({ part }) => {
+            // Modelo no início (rodapé da resposta, SPEC-R4-009); uso no fim.
+            if (part.type === "start") return { model }
             if (part.type !== "finish") return undefined
             return {
               usage: {

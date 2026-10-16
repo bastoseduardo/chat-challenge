@@ -26,3 +26,8 @@ Dois detalhes que sinalizam cuidado: saber qual modelo respondeu e poder ditar n
 - [ ] Resposta nova e antiga mostram o modelo.
 - [ ] Chrome desktop e Android: ditar preenche o composer; Firefox: botão não aparece.
 - [ ] axe sem violações no composer.
+
+## Notas da implementação (2026-10-16)
+- Modelo: `messageMetadata` manda `{ model }` no `start` (o `usage` continua no `finish`); `listMessagesWithAttachments` preenche `metadata.model` com `messages.model`. Rodapé em `answer-meta.tsx`, junto da linha de confiança: "Sonnet 4.6 · 2 fontes, a mais recente de out/2026". Fica fora do relatório público (o share não traz metadata).
+- Ditado: `hooks/use-dictation.ts` (`continuous`, `interimResults`, pt-BR), botão de microfone à esquerda do enviar, só quando a API existe (`useSyncExternalStore`, falso na hidratação). Enviar com Enter para o ditado. Erro `not-allowed` → toast pedindo o microfone.
+- Validado com um `webkitSpeechRecognition` falso no Playwright: texto provisório e final entram depois do que já estava digitado, "Ouvindo…" + `aria-pressed`, permissão negada mostra o toast, sem a API o botão não aparece; modelo na resposta nova e após recarregar; axe sem violações com o composer ouvindo. **Não testado com microfone real** (Chrome desktop/Android): fica pra validação manual.

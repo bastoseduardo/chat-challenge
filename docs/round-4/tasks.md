@@ -142,10 +142,10 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [x] R4084 Validação + teste unitário da regra de bloqueio
 
 ### R4-009 · Modelo na resposta + ditado (P2)
-- [ ] R4091 Metadata do stream inclui `model`; mensagens salvas já têm `messages.model`
-- [ ] R4092 Rodapé discreto com o nome do modelo
-- [ ] R4093 Botão de ditado (Web Speech API, `pt-BR`), escondido sem suporte
-- [ ] R4094 Validação
+- [x] R4091 Metadata do stream inclui `model`; mensagens salvas já têm `messages.model`
+- [x] R4092 Rodapé discreto com o nome do modelo
+- [x] R4093 Botão de ditado (Web Speech API, `pt-BR`), escondido sem suporte
+- [x] R4094 Validação
 
 ### R4-010 · Primeira experiência (P0 pra demo)
 - [x] R4101 Tela de boas-vindas quando o usuário não tem conversas
