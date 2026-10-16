@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { z } from "zod"
-import { and, eq, gte, isNull, or, sql } from "drizzle-orm"
+import { and, eq, isNull, or, sql } from "drizzle-orm"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { messages } from "@/lib/db/schema"
@@ -65,7 +65,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         isNull(messages.deletedAt),
         // O resumo (criado depois das mensagens recentes que ele não cobre) fica.
         eq(messages.isSummary, false),
-        gte(messages.createdAt, from.createdAt)
+        // No SQL, com microssegundos (o Date do JS trunca em ms).
+        sql`${messages.createdAt} >= (select m.created_at from messages m where m.id = ${from.id}::uuid)`
       )
     )
     .returning({ id: messages.id })

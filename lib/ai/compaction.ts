@@ -1,6 +1,6 @@
 import { generateText, type UIMessage } from "ai"
 import { textWithCitations } from "@/lib/sources/extract"
-import { eq, and, gt, isNull, sql, asc } from "drizzle-orm"
+import { eq, and, isNull, sql, asc } from "drizzle-orm"
 import { after } from "next/server"
 import { db } from "@/lib/db/client"
 import { loadWindowStart } from "@/lib/ai/context-window"
@@ -64,14 +64,14 @@ export async function compactIfNeeded(opts: {
 
   // Mensagens depois da última resumida (as recentes mantidas na compactação
   // anterior entram de novo; o resumo anterior vai junto no prompt).
-  const { lastSummary, since } = await loadWindowStart(conversationId)
+  const { lastSummary, afterStart } = await loadWindowStart(conversationId)
   const windowRows = await db
     .select()
     .from(messages)
     .where(
       and(
         eq(messages.conversationId, conversationId),
-        gt(messages.createdAt, since),
+        afterStart,
         eq(messages.isSummary, false),
         isNull(messages.deletedAt)
       )
