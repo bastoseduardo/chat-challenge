@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useQuery } from "@tanstack/react-query"
-import { BarChart3, Loader2, MessageSquare, Moon, Plus, Settings, Sparkles, Sun } from "lucide-react"
+import { BarChart3, Loader2, MessageSquare, Moon, NotebookPen, Plus, Settings, Sparkles, Sun } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import {
   Command,
@@ -15,6 +15,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { succeeded, useConversations } from "@/lib/conversations/store"
+import { searchNotesApi } from "@/lib/notes/store"
 
 interface SearchResult {
   messageId: string
@@ -69,6 +70,14 @@ export function CommandPalette({
     retry: false,
   })
 
+  const notesSearch = useQuery({
+    queryKey: ["palette-notes", debounced],
+    queryFn: ({ signal }) => searchNotesApi(debounced, signal),
+    enabled: open && debounced.length >= 3,
+    staleTime: 30_000,
+    retry: false,
+  })
+
   function setOpen(next: boolean) {
     if (!next) setQuery("")
     onOpenChange(next)
@@ -83,6 +92,7 @@ export function CommandPalette({
   const actions = [
     { id: "new", label: "Nova conversa", icon: Plus, run: () => go("/c/new") },
     { id: "settings", label: "Abrir configurações", icon: Settings, run: () => go("/settings") },
+    { id: "notes", label: "Abrir o caderno", icon: NotebookPen, run: () => go("/caderno") },
     { id: "usage", label: "Ver uso de hoje", icon: BarChart3, run: () => go("/usage") },
     {
       id: "theme",
@@ -100,6 +110,7 @@ export function CommandPalette({
     q ? 8 : 5
   )
   const semantic = debounced === q && q.length >= 3 ? (search.data ?? []) : []
+  const notes = debounced === q && q.length >= 3 ? (notesSearch.data ?? []).slice(0, 5) : []
   const searching = q.length >= 3 && (debounced !== q || search.isFetching)
 
   return (
@@ -117,7 +128,7 @@ export function CommandPalette({
             placeholder="Buscar conversas ou digitar um comando"
           />
           <CommandList className="max-h-[min(60vh,420px)]">
-            {!searching && actions.length + titles.length + semantic.length === 0 && (
+            {!searching && actions.length + titles.length + semantic.length + notes.length === 0 && (
               <CommandEmpty>
                 {search.isError ? (search.error as Error).message : "Nada encontrado."}
               </CommandEmpty>
@@ -138,6 +149,26 @@ export function CommandPalette({
                   <CommandItem key={c.id} value={`conv-${c.id}`} onSelect={() => go(`/c/${c.id}`)}>
                     <MessageSquare className="mr-2 size-4" />
                     <span className="truncate">{c.title}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {notes.length > 0 && (
+              <CommandGroup heading="No caderno">
+                {notes.map((n) => (
+                  <CommandItem
+                    key={n.id}
+                    value={`note-${n.id}`}
+                    onSelect={() =>
+                      go(n.conversationId ? `/c/${n.conversationId}${n.messageId ? `#msg-${n.messageId}` : ""}` : "/caderno")
+                    }
+                    className="items-start"
+                  >
+                    <NotebookPen className="mr-2 mt-0.5 size-4 shrink-0 text-tool" />
+                    <span className="min-w-0">
+                      {n.title && <span className="block truncate text-xs text-muted-foreground">{n.title}</span>}
+                      <span className="line-clamp-2 text-sm">{n.quote ?? n.content}</span>
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

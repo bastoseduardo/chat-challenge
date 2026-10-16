@@ -49,3 +49,12 @@ O usuário guarda o que importa com 1 clique e encontra depois, sabendo de onde 
 
 ## Riscos
 - Botão flutuante disputando com o menu nativo de seleção no mobile. **Mitigação:** no `pointer-coarse`, mostrar o botão fixo acima do composer em vez de flutuante.
+
+## Notas da implementação (2026-10-16)
+- `MessageBubble` ganhou a prop `conversationId`; sem ela (página pública) não há seleção nem "Guardar resposta".
+- `SelectionToSave` (via `selectionchange`): trecho sem os números das marcações; fonte = marcação dentro da seleção ou a primeira depois dela (`useCitationSources`). Desktop: botão flutuante acima da seleção; toque: botão fixo acima do composer (44 px).
+- Busca no Caderno: enquanto o servidor (texto + significado, ~1–2 s por causa do embedding) não responde, a lista filtra na hora as notas já carregadas.
+- Conteúdo da nota renderizado como Markdown ("Guardar resposta" guarda a resposta formatada).
+- Validado: guardar logo após o stream com `message_id` igual ao da tela e fonte certa; caderno pela sidebar; busca por palavra e significado; editar/apagar/desfazer sem RSC; link da nota rola até a mensagem; grupo "No caderno" no Ctrl+K; mobile; axe sem violações.
+- E2E opcional (R4058) não foi escrito: o roteiro de validação cobre o fluxo; fica pra R4-010 se quiser no CI.
+
