@@ -1,7 +1,7 @@
 import { after } from "next/server"
 import { db } from "@/lib/db/client"
 import { userNotes } from "@/lib/db/schema"
-import { and, desc, eq, ilike, isNotNull, isNull, lt, or, sql } from "drizzle-orm"
+import { and, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm"
 import { embedDocument, embedQuery, toVectorLiteral } from "@/lib/ai/embeddings"
 import type { CreateNoteInput } from "@/lib/notes/schema"
 
@@ -66,6 +66,20 @@ export async function createNote(userId: string, input: CreateNoteInput): Promis
   return row as Note
 }
 
+// Paginação por keyset em (created_at truncado em ms, id): o JS só guarda
+// milissegundos e o Postgres guarda microssegundos; comparar só a data pulava
+// notas criadas no mesmo milissegundo da última da página.
+const createdMs = sql`date_trunc('milliseconds', ${userNotes.createdAt})`
+
+export function encodeNotesCursor(n: { createdAt: Date; id: string }): string {
+  return `${n.createdAt.toISOString()}|${n.id}`
+}
+
+function decodeNotesCursor(cursor: string) {
+  const [at, id] = cursor.split("|")
+  return { at: new Date(at), id }
+}
+
 export async function listNotes(opts: {
   userId: string
   conversationId?: string
@@ -80,10 +94,15 @@ export async function listNotes(opts: {
       and(
         own(opts.userId),
         opts.conversationId ? eq(userNotes.conversationId, opts.conversationId) : undefined,
-        opts.cursor ? lt(userNotes.createdAt, new Date(opts.cursor)) : undefined
+        opts.cursor
+          ? (() => {
+              const c = decodeNotesCursor(opts.cursor)
+              return sql`(${createdMs}, ${userNotes.id}) < (${c.at.toISOString()}::timestamptz, ${c.id}::uuid)`
+            })()
+          : undefined
       )
     )
-    .orderBy(desc(userNotes.createdAt))
+    .orderBy(desc(createdMs), desc(userNotes.id))
     .limit(limit)) as Note[]
 }
 
@@ -157,7 +176,9 @@ export async function similarNotes(opts: {
  * Se o embedding falhar, fica só com o texto.
  */
 export async function searchNotes(userId: string, q: string, limit = 20): Promise<Note[]> {
-  const pattern = `%${q.replace(/[%_]/g, (c) => `\\${c}`)}%`
+  // A barra invertida é o escape do LIKE: escapa ela também, senão uma busca
+  // por um caminho do Windows não casa.
+  const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
   const byText = (await db
     .select(noteColumns)
     .from(userNotes)

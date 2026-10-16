@@ -4,7 +4,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, streamText, type 
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages, attachments as attachmentsTable, userSettings } from "@/lib/db/schema"
-import { and, eq, gt, isNull, sql } from "drizzle-orm"
+import { and, eq, gt, isNull, or, sql } from "drizzle-orm"
 import { getModel } from "@/lib/ai/client"
 import { DEFAULT_MODEL } from "@/lib/ai/pricing"
 import { assertWithinCaps, QuotaError } from "@/lib/usage/caps"
@@ -19,6 +19,7 @@ import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
 import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
 import { embedAndStoreMessage } from "@/lib/db/queries/search"
 import { compactPartsForStorage } from "@/lib/ai/persist-parts"
+import { invalidateShareSummary } from "@/lib/share/invalidate"
 import { findContextNotes, notesUsedData, withNotesContext } from "@/lib/notes/context"
 
 export const maxDuration = 60
@@ -148,50 +149,62 @@ export async function POST(req: NextRequest) {
         return !url.startsWith("blob:")
       }
     )
-    // Idempotência: se o cliente mandou clientMessageId e esse par já existe, só pega o id.
-    const [inserted] = await db
-      .insert(messages)
-      .values({
-        conversationId,
-        clientMessageId: clientMessageId ?? null,
-        role: "user",
-        content: sanitizedParts as unknown as object,
-      })
-      .onConflictDoNothing({
-        target: [messages.conversationId, messages.clientMessageId],
-      })
-      .returning({ id: messages.id })
+    // Idempotência / "Gerar de novo": a pergunta reenviada já existe. Antes de
+    // recarregar, o cliente a conhece pelo id que ele gerou (client_message_id);
+    // depois de recarregar, pelo id do banco. Procura pelos dois.
+    const findExisting = () =>
+      clientMessageId
+        ? db
+            .select({ id: messages.id, createdAt: messages.createdAt })
+            .from(messages)
+            .where(
+              and(
+                eq(messages.conversationId, conversationId),
+                eq(messages.role, "user"),
+                isNull(messages.deletedAt),
+                or(sql`${messages.id}::text = ${clientMessageId}`, eq(messages.clientMessageId, clientMessageId))
+              )
+            )
+            .limit(1)
+            .then((rows) => rows[0])
+        : Promise.resolve(undefined)
 
-    if (inserted) {
-      userMessageId = inserted.id
-    } else if (clientMessageId) {
+    let existing = await findExisting()
+    if (!existing) {
+      const [inserted] = await db
+        .insert(messages)
+        .values({
+          conversationId,
+          clientMessageId: clientMessageId ?? null,
+          role: "user",
+          content: sanitizedParts as unknown as object,
+        })
+        .onConflictDoNothing({
+          target: [messages.conversationId, messages.clientMessageId],
+        })
+        .returning({ id: messages.id })
+      if (inserted) userMessageId = inserted.id
+      else existing = await findExisting() // corrida com um reenvio simultâneo
+    }
+
+    if (existing) {
       isDuplicate = true
-      const [existing] = await db
-        .select({ id: messages.id, createdAt: messages.createdAt })
-        .from(messages)
+      userMessageId = existing.id
+      // A resposta anterior sai do histórico (soft delete), senão as duas
+      // voltariam ao recarregar e iriam pro contexto do modelo.
+      const removed = await db
+        .update(messages)
+        .set({ deletedAt: new Date() })
         .where(
           and(
             eq(messages.conversationId, conversationId),
-            eq(messages.clientMessageId, clientMessageId)
+            gt(messages.createdAt, existing.createdAt),
+            eq(messages.isSummary, false),
+            isNull(messages.deletedAt)
           )
         )
-        .limit(1)
-      userMessageId = existing?.id ?? null
-      // "Gerar de novo" reenvia a mesma pergunta: a resposta anterior sai do
-      // histórico (soft delete), senão as duas voltariam ao recarregar.
-      if (existing) {
-        await db
-          .update(messages)
-          .set({ deletedAt: new Date() })
-          .where(
-            and(
-              eq(messages.conversationId, conversationId),
-              gt(messages.createdAt, existing.createdAt),
-              eq(messages.isSummary, false),
-              isNull(messages.deletedAt)
-            )
-          )
-      }
+        .returning({ id: messages.id })
+      if (removed.length > 0) await invalidateShareSummary(conversationId)
     }
 
     if (userMessageId && !isDuplicate && incomingAttachments.length > 0) {

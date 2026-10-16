@@ -3,7 +3,8 @@ import { messages, attachments as attachmentsTable } from "@/lib/db/schema"
 import { and, eq, gt, isNotNull, isNull, asc } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import { loadWindowStart } from "@/lib/ai/context-window"
-import type { ModelMessage } from "ai"
+import type { ModelMessage, UIMessage } from "ai"
+import { textWithCitations } from "@/lib/sources/extract"
 
 export interface ConversationContext {
   messages: ModelMessage[]
@@ -39,10 +40,10 @@ export async function buildContext(conversationId: string): Promise<Conversation
 
   for (const row of rows) {
     const parts = Array.isArray(row.content) ? (row.content as Array<Record<string, unknown>>) : []
-    const text = parts
-      .filter((p) => (p as { type?: string }).type === "text")
-      .map((p) => (p as { text?: string }).text ?? "")
-      .join("")
+    // Blocos de texto separados por uma ferramenta não podem sair colados
+    // ("Vou pesquisar.A resposta é X"): textWithCitations põe parágrafo entre
+    // etapas e mantém juntos os trechos citados da mesma frase.
+    const text = textWithCitations({ id: row.id, role: row.role, parts } as unknown as UIMessage)
 
     if (row.role === "user") {
       const content: Array<Record<string, unknown>> = []

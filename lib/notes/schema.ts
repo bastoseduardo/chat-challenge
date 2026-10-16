@@ -48,7 +48,11 @@ export type UpdateNoteInput = z.infer<typeof updateNoteSchema>
 
 export const listNotesQuerySchema = z.object({
   conversationId: z.string().uuid().optional(),
-  cursor: z.string().datetime({ offset: true }).optional(),
+  // "<created_at em ms>|<id>" (keyset estável mesmo com notas no mesmo ms).
+  cursor: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\|[0-9a-f-]{36}$/i)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 })
 

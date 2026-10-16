@@ -7,6 +7,8 @@ import { messages } from "@/lib/db/schema"
 import { getConversation } from "@/lib/db/queries/conversations"
 import { logAudit } from "@/lib/audit/log"
 import { TRUNCATE_BLOCKED_MESSAGE, truncateBlocked } from "@/lib/conversations/truncate-rule"
+import { invalidateShareSummary } from "@/lib/share/invalidate"
+import { alias } from "drizzle-orm/pg-core"
 
 // O cliente conhece a mensagem pelo id do banco (depois de recarregar) ou pelo
 // id que ele mesmo gerou (gravado em client_message_id) antes de recarregar.
@@ -43,19 +45,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: "message_not_found" }, { status: 404 })
   }
 
+  // Data da última mensagem resumida por cada resumo (ou a do resumo, se antigo).
+  const cutoffMsg = alias(messages, "cutoff")
   const summaries = await db
-    .select({ createdAt: messages.createdAt })
+    .select({ createdAt: messages.createdAt, cutoffCreatedAt: cutoffMsg.createdAt })
     .from(messages)
+    .leftJoin(cutoffMsg, eq(cutoffMsg.id, messages.summarizesUntilMessageId))
     .where(and(eq(messages.conversationId, id), eq(messages.isSummary, true), isNull(messages.deletedAt)))
-  if (truncateBlocked(from.createdAt, summaries.map((s) => s.createdAt))) {
+  if (truncateBlocked(from.createdAt, summaries.map((s) => s.cutoffCreatedAt ?? s.createdAt))) {
     return NextResponse.json({ error: "summarized", message: TRUNCATE_BLOCKED_MESSAGE }, { status: 409 })
   }
 
   const removed = await db
     .update(messages)
     .set({ deletedAt: new Date() })
-    .where(and(eq(messages.conversationId, id), isNull(messages.deletedAt), gte(messages.createdAt, from.createdAt)))
+    .where(
+      and(
+        eq(messages.conversationId, id),
+        isNull(messages.deletedAt),
+        // O resumo (criado depois das mensagens recentes que ele não cobre) fica.
+        eq(messages.isSummary, false),
+        gte(messages.createdAt, from.createdAt)
+      )
+    )
     .returning({ id: messages.id })
+  if (removed.length > 0) await invalidateShareSummary(id)
 
   await logAudit({
     userId: user.id,
