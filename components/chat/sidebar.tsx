@@ -10,6 +10,7 @@ import {
   MessageSquarePlus,
   Moon,
   MoreHorizontal,
+  NotebookPen,
   Pencil,
   Plus,
   Search,
@@ -237,6 +238,19 @@ export function Sidebar({ user }: SidebarProps) {
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === "/caderno"}
+              tooltip="Caderno"
+              className={`${activeBar} pointer-coarse:h-11`}
+            >
+              <Link href="/caderno" onClick={closeOnMobile}>
+                <NotebookPen />
+                <span>Caderno</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

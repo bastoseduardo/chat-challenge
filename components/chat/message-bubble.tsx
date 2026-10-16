@@ -2,13 +2,15 @@
 
 import type { UIMessage } from "ai"
 import { memo, useMemo, useState, type ReactNode } from "react"
-import { Copy, RefreshCw, Check, FileText } from "lucide-react"
+import { Copy, RefreshCw, Check, FileText, NotebookPen } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Markdown } from "./markdown"
 import { ResearchTrail, type ToolStep } from "./research-trail"
 import { ImageLightbox } from "./image-lightbox"
 import { CitationProvider, SourcesList, citeMarker, trustLine } from "./citations"
+import { SelectionToSave } from "./selection-to-save"
+import { useNoteActions } from "@/lib/notes/store"
 import {
   appendBeforeTrailingSpace,
   citationsByPart,
@@ -23,6 +25,8 @@ interface MessageBubbleProps {
   /** Última mensagem enquanto o modelo ainda escreve. */
   isStreaming?: boolean
   onRegenerate?: () => void
+  /** Conversa dona da mensagem; habilita guardar no caderno (ausente no share). */
+  conversationId?: string
 }
 
 type AnyPart = UIMessage["parts"][number] & {
@@ -89,7 +93,8 @@ function UserMessage({ message }: { message: UIMessage }) {
   )
 }
 
-function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: MessageBubbleProps) {
+function AssistantMessage({ message, isLast, isStreaming, onRegenerate, conversationId }: MessageBubbleProps) {
+  const notes = useNoteActions()
   const [copied, setCopied] = useState(false)
   const parts = message.parts as AnyPart[]
 
@@ -168,13 +173,29 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: Messag
 
   const trust = trustLine(sources, pageAges, usedWeb)
 
+  function saveAnswer() {
+    if (!conversationId) return
+    const text = textWithCitations(message).slice(0, 20_000)
+    if (!text) return
+    void notes.create({ content: text, conversationId, messageId: message.id })
+  }
+
+  const body =
+    conversationId && !isStreaming ? (
+      <SelectionToSave conversationId={conversationId} messageId={message.id}>
+        {blocks}
+      </SelectionToSave>
+    ) : (
+      blocks
+    )
+
   const canRegenerate = isLast && onRegenerate && !isStreaming
   const hasText = parts.some((p) => p.type === "text" && (p as { text: string }).text.trim())
 
   return (
     <CitationProvider sources={sources} sourcesByStep={sourcesByStep}>
     <div id={`msg-${message.id}`} className="group scroll-mt-6 space-y-1">
-      {blocks}
+      {body}
       {!isStreaming && <SourcesList sources={sources} />}
       {!isStreaming && hasText && (
         <div
@@ -190,6 +211,11 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: Messag
           {canRegenerate && (
             <ActionButton label="Gerar de novo" onClick={onRegenerate}>
               <RefreshCw className="size-4" />
+            </ActionButton>
+          )}
+          {conversationId && (
+            <ActionButton label="Guardar resposta no caderno" onClick={saveAnswer}>
+              <NotebookPen className="size-4" />
             </ActionButton>
           )}
           {trust && <span className="ml-1.5 text-xs text-muted-foreground">{trust}</span>}

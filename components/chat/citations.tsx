@@ -49,6 +49,11 @@ export function CitationProvider({
   return <CitationContext.Provider value={value}>{children}</CitationContext.Provider>
 }
 
+/** Fontes citadas na mensagem atual (vazio fora de um CitationProvider). */
+export function useCitationSources(): Source[] {
+  return useContext(CitationContext)?.sources ?? []
+}
+
 /** Fontes destacadas agora (por hover num passo da trilha ou numa marcação). */
 function useHighlightedSources(): Set<number> {
   const ctx = useContext(CitationContext)

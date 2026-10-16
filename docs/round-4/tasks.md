@@ -108,14 +108,14 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [x] R4047 Testes unitários da validação de payload
 
 ### R4-005 · Caderno: interface (P1)
-- [ ] R4051 Item "Caderno" na sidebar + rota `/caderno` no shell
-- [ ] R4052 Lista com busca, filtro por conversa, editar inline, apagar com "Desfazer"
-- [ ] R4053 `SelectionToSave`: seleção de texto em resposta mostra "Guardar no caderno"
-- [ ] R4054 Ação "Guardar resposta" nas ações da mensagem
-- [ ] R4055 Toast "Guardado no caderno" com "Abrir"
-- [ ] R4056 Nota mostra origem (conversa `#msg-`, fonte)
-- [ ] R4057 Grupo "No caderno" no Ctrl+K
-- [ ] R4058 Validação + E2E opcional (`E2E_DEV_LOGIN=1`)
+- [x] R4051 Item "Caderno" na sidebar + rota `/caderno` no shell
+- [x] R4052 Lista com busca, filtro por conversa, editar inline, apagar com "Desfazer"
+- [x] R4053 `SelectionToSave`: seleção de texto em resposta mostra "Guardar no caderno"
+- [x] R4054 Ação "Guardar resposta" nas ações da mensagem
+- [x] R4055 Toast "Guardado no caderno" com "Abrir"
+- [x] R4056 Nota mostra origem (conversa `#msg-`, fonte)
+- [x] R4057 Grupo "No caderno" no Ctrl+K
+- [x] R4058 Validação (feita com roteiro Playwright logado; o E2E opcional `E2E_DEV_LOGIN=1` **não** foi escrito)
 
 ### R4-006 · Caderno como contexto (P1)
 - [ ] R4061 Busca das 3 notas mais similares por mensagem (limiar configurável)

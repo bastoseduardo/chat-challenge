@@ -414,6 +414,7 @@ export function ChatView({
                     isLast={isLast}
                     isStreaming={isLast && isLoading && m.role === "assistant"}
                     onRegenerate={handleRegenerate}
+                    conversationId={started ? conversationId : undefined}
                   />
                 )
               })}
