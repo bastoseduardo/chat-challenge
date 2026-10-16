@@ -8,7 +8,7 @@ import { ChatView } from "./chat-view"
 // history.replaceState, sem desmontar. Se o usuário pedir outra conversa nova
 // (/c/new de novo), o React pode reaproveitar a mesma instância — a key
 // força um ChatView zerado, com um id novo.
-export function NewChat() {
+export function NewChat({ forceWelcome }: { forceWelcome?: boolean }) {
   const pathname = usePathname()
   const [prevPathname, setPrevPathname] = useState(pathname)
   const [instance, setInstance] = useState(0)
@@ -18,5 +18,5 @@ export function NewChat() {
     if (pathname === "/c/new") setInstance((n) => n + 1)
   }
 
-  return <ChatView key={instance} />
+  return <ChatView key={instance} forceWelcome={forceWelcome && instance === 0} />
 }

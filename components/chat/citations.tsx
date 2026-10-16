@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { sourceLabel } from "@/lib/sources/extract"
 import type { Source } from "@/lib/sources/types"
+import { markTour } from "@/lib/demo/tour"
 
 /*
  * Citações na resposta (SPEC-R4-003). Os números vêm de lib/sources: cada
@@ -98,6 +99,7 @@ function CitationMark({ index }: { index: number }) {
     if (closeTimer.current) clearTimeout(closeTimer.current)
     setOpen(true)
     ctx?.setHover({ kind: "source", index })
+    markTour("citation")
   }
   const closeSoon = () => {
     closeTimer.current = setTimeout(() => {

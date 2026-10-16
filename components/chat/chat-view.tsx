@@ -21,6 +21,9 @@ import { ShareDialog } from "./share-dialog"
 import { useAttachments } from "./use-attachments"
 import { Composer, type ComposerHandle } from "./composer"
 import { EmptyState } from "./empty-state"
+import { Welcome } from "@/components/onboarding/welcome"
+import { TourPanel } from "@/components/onboarding/tour-panel"
+import { SAMPLE_PROMPT } from "@/lib/demo/sample-prompt"
 import { activityLabel } from "./research-trail"
 import { QuotaDialog } from "./quota-dialog"
 import { ContextIndicator } from "./context-indicator"
@@ -32,6 +35,7 @@ import {
   statsKey,
   succeeded,
   useConversationCache,
+  useConversations,
   useConversationTitle,
   type ConversationStats,
 } from "@/lib/conversations/store"
@@ -67,6 +71,8 @@ interface ChatViewProps {
   model?: string
   systemPrompt?: string | null
   initialMessages?: UIMessage[]
+  /** Força as boas-vindas (`/c/new?welcome=1`, só em dev). */
+  forceWelcome?: boolean
 }
 
 export function ChatView({
@@ -77,6 +83,7 @@ export function ChatView({
   model = DEFAULT_MODEL,
   systemPrompt = null,
   initialMessages = [],
+  forceWelcome = false,
 }: ChatViewProps) {
   const queryClient = useQueryClient()
   const cache = useConversationCache()
@@ -85,6 +92,9 @@ export function ChatView({
   const [started, setStarted] = useState(!!existingId)
   const creatingRef = useRef<Promise<void> | null>(existingId ? Promise.resolve() : null)
   const title = useConversationTitle(conversationId, initialTitle)
+  const { data: conversations } = useConversations()
+  // Boas-vindas só pra quem ainda não tem nenhuma conversa (SPEC-R4-010).
+  const [welcome] = useState(() => forceWelcome || (!existingId && conversations?.length === 0))
 
   const [input, setInput] = useState("")
   const [shareOpen, setShareOpen] = useState(false)
@@ -117,6 +127,15 @@ export function ChatView({
     initial: "instant",
     resize: "smooth",
   })
+
+  // As boas-vindas são mais altas que a tela no celular: começam do topo, sem
+  // o "grudar no fim" (o primeiro envio volta a grudar).
+  useEffect(() => {
+    if (!welcome || initialMessages.length > 0) return
+    stopScroll()
+    scrollRef.current?.scrollTo({ top: 0 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Título da aba acompanha o da conversa (inclusive depois do replaceState
   // da nova conversa e de renomear), sem consultar o servidor.
@@ -230,8 +249,8 @@ export function ChatView({
     setStarted(true)
   }
 
-  async function handleSubmit() {
-    const text = input.trim()
+  async function handleSubmit(override?: string) {
+    const text = (override ?? input).trim()
     if (!text && attach.ready.length === 0) return
     if (attach.isUploading) {
       toast.info("Aguarde o upload terminar")
@@ -396,7 +415,17 @@ export function ChatView({
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRef} className="h-full overflow-y-auto">
             <div ref={contentRef} className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
-              {messages.length === 0 && (
+              {messages.length === 0 && welcome && (
+                <Welcome
+                  onSample={() => void handleSubmit(SAMPLE_PROMPT)}
+                  onPrompt={(text) => {
+                    setInput(text)
+                    composerRef.current?.focus()
+                  }}
+                  onPickFiles={() => composerRef.current?.pickFiles()}
+                />
+              )}
+              {messages.length === 0 && !welcome && (
                 <EmptyState
                   onPrompt={(text) => {
                     setInput(text)
@@ -441,7 +470,7 @@ export function ChatView({
               </p>
             </div>
           </div>
-          {!isAtBottom && (
+          {!isAtBottom && messages.length > 0 && (
             <Button
               type="button"
               variant="outline"
@@ -453,6 +482,7 @@ export function ChatView({
               Ir para o fim
             </Button>
           )}
+          {messages.length > 0 && <TourPanel />}
         </div>
 
         <Composer
