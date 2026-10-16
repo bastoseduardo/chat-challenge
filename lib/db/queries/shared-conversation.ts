@@ -36,6 +36,13 @@ type DynamicToolPart = {
   errorText?: string
 }
 
+/**
+ * Partes que ficam fora do relatório público: as notas do caderno usadas como
+ * contexto (SPEC-R4-006) são privadas. A função SQL v4 já as remove; o filtro
+ * aqui cobre a v3 e qualquer leitura direta.
+ */
+const PRIVATE_PART_TYPES = new Set(["data-notes-used"])
+
 export async function loadSharedConversation(
   token: string
 ): Promise<{
@@ -103,7 +110,7 @@ export async function loadSharedConversation(
   const messages: UIMessage[] = []
   for (const m of visibleMessages) {
     const basePartsRaw = Array.isArray(m.content)
-      ? (m.content as Array<TextPart | FilePart>)
+      ? (m.content as Array<TextPart | FilePart>).filter((p) => !PRIVATE_PART_TYPES.has(p.type))
       : []
 
     // Formato novo (SPEC-R4-001): parts completas salvas, inclusive citações.

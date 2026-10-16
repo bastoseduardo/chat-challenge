@@ -12,7 +12,13 @@ export const createNoteSchema = z
     quote: trimmed(5_000).optional(),
     source: z
       .object({
-        url: z.string().url().max(2_000).optional(),
+        // Só http(s): o link da fonte vira <a href> no Caderno.
+        url: z
+          .string()
+          .url()
+          .max(2_000)
+          .refine((u) => /^https?:\/\//i.test(u), "A fonte precisa ser um link http(s)")
+          .optional(),
         title: trimmed(300).optional(),
         page: z.number().int().positive().max(100_000).optional(),
       })

@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: verifyError.message }, { status: 500 })
   }
 
+  // Só caminhos do próprio app: "//host" e "/\host" seriam outro domínio.
   const next = request.nextUrl.searchParams.get("next") ?? "/"
-  return NextResponse.redirect(new URL(next.startsWith("/") ? next : "/", request.url))
+  const safe = next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/"
+  return NextResponse.redirect(new URL(safe, request.url))
 }

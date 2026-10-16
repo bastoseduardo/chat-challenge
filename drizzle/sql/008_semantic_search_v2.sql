@@ -41,4 +41,5 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION semantic_search_messages(uuid, vector, int) FROM public;
-GRANT EXECUTE ON FUNCTION semantic_search_messages(uuid, vector, int) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION semantic_search_messages(uuid, vector, int) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION semantic_search_messages(uuid, vector, int) TO service_role;
