@@ -214,7 +214,19 @@ export async function POST(req: NextRequest) {
 
   // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
   // (Attachments entram via buildContext como file parts com URL, não bytes.)
-  const historyMessages = await buildContext(conversationId)
+  const context = await buildContext(conversationId)
+  // O AI SDK 7 recusa mensagens `system` no histórico ("System messages are
+  // not allowed in the prompt or messages fields"): o resumo da compactação
+  // vai pro system prompt, senão a conversa para de responder após compactar.
+  const summaryText = context
+    .filter((m) => m.role === "system")
+    .map((m) => (typeof m.content === "string" ? m.content : ""))
+    .join("\n\n")
+    .trim()
+  const historyMessages = context.filter((m) => m.role !== "system")
+  if (summaryText && historyMessages[0]?.role === "assistant") {
+    historyMessages.unshift({ role: "user", content: "(Continuação da conversa resumida no system prompt.)" })
+  }
 
   const builtinTools = getBuiltinTools({ enabled: enabledTools, driveToken })
   const mcp = await loadMcpTools({
@@ -228,7 +240,7 @@ export async function POST(req: NextRequest) {
   // com tool_calls e sem text).
   const BASE_SYSTEM = `You can call tools to gather info. ALWAYS end your turn with a plain-text reply to the user summarizing what you found; never stop mid-tool-chain without a response.`
   const userSystem = conv.systemPrompt?.trim()
-  const combinedSystem = userSystem ? `${BASE_SYSTEM}\n\n${userSystem}` : BASE_SYSTEM
+  const combinedSystem = [BASE_SYSTEM, userSystem, summaryText].filter(Boolean).join("\n\n")
 
   const result = streamText({
     model: getModel(model),

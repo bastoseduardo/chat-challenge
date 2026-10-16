@@ -18,12 +18,29 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
     .orderBy(desc(messages.createdAt))
     .limit(1)
 
-  const since = lastSummary?.createdAt ?? new Date(0)
+  // Começa logo após a última mensagem resumida, não na data do resumo: a
+  // compactação mantém as mensagens recentes fora do resumo, e começar pela
+  // data do resumo as deixava de fora do contexto.
+  let since = lastSummary?.createdAt ?? new Date(0)
+  if (lastSummary?.summarizesUntilMessageId) {
+    const [cutoff] = await db
+      .select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.id, lastSummary.summarizesUntilMessageId))
+      .limit(1)
+    if (cutoff) since = cutoff.createdAt
+  }
 
   const rows = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since)))
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        gt(messages.createdAt, since),
+        eq(messages.isSummary, false)
+      )
+    )
     .orderBy(asc(messages.createdAt))
 
   const out: ModelMessage[] = []
