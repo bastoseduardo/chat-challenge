@@ -33,3 +33,13 @@ Como o dev-login usa a conta do autor (com conversas), permitir forçar a tela: 
 - [ ] Mobile 390: painel não cobre o composer.
 - [ ] README com roteiro e GIF.
 - [ ] Cronometrar o roteiro completo: ≤ 3 min.
+
+## Notas da implementação (2026-10-16)
+- `Welcome` aparece quando a lista de conversas (já hidratada no servidor) está vazia; `/c/new?welcome=1` força em dev (lido na page, `NODE_ENV=development`). O exemplo usa o mesmo `handleSubmit` do composer (`handleSubmit(SAMPLE_PROMPT)`).
+- Boas-vindas começam do topo (o `use-stick-to-bottom` grudava no fim no celular) e sem "Ir para o fim". `StarterList` extraída da `EmptyState`, com `grid-cols-1` (o texto truncado estourava a largura no celular).
+- `TourPanel`: `useSyncExternalStore` sobre `lib/demo/tour.ts` (`seshat:tour`, try/catch, sincroniza entre abas). Abaixo de 1400 px começa recolhido numa pílula "O que observar 0/4" (o cartão cobriria o texto da resposta); no celular a pílula mostra só o progresso.
+- Ganchos: `citations.tsx` (cartão abre), `research-trail.tsx` (trilha ou passo expandido), `lib/notes/store.ts` (nota criada, cobre seleção e "Guardar resposta"), `share-dialog.tsx` (link gerado).
+- Achado no caminho (corrigido): citações de página lida pelo `web_fetch` vêm como `document` text/plain; o cartão mostrava "PDF" sem link. `extractSources` agora casa o título com o resultado do `tool-web_fetch` e usa a URL.
+- Validado: exemplo em 28 s com 4 marcações; os 4 itens marcam sozinhos; recarregar mantém, "Dispensar" persiste; mobile 390: pílula (44 px) e cartão acima do composer; axe sem violações (boas-vindas escuro/claro/mobile, painel). Roteiro automatizado (exemplo + 4 itens) em 52 s; com PDF e relatório, ~2 min.
+- Cotas: a pesquisa de exemplo gastou 15,4 mil tokens (14,6k entrada + 0,8k saída). O padrão do código (`USER_DAILY_TOKEN_CAP` = 100 mil) dá ~6 perguntas; pra ~10 perguntas com folga, usar **400 mil** na Vercel (mesmo valor do `.env.local`). Valor atual da Vercel não conferido daqui (sem CLI): conferir no painel.
+- GIF: `docs/demo.gif` (900×540, 16 s, 1,4 MB), frames do Playwright montados com `gifenc` fora do repo.

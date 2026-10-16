@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Copy, ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { succeeded } from "@/lib/conversations/store"
+import { markTour } from "@/lib/demo/tour"
 
 interface ShareDialogProps {
   conversationId: string
@@ -52,6 +53,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     }
     setToken(data.token)
     setSummary(data.summary ?? null)
+    markTour("share")
     if (!data.summary) toast.info("Link criado. O resumo não pôde ser gerado agora.")
   }
 

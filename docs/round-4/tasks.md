@@ -68,6 +68,8 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 ## Pendências fora das specs
 
 - [ ] **SEC-01 · Levar a correção da rota MCP pra `main` (produção).** `POST /api/mcp/user-notes` em produção aceita `X-User-Id` sem verificar a sessão: um usuário logado consegue ler e gravar notas de outra conta. Corrigido na R4-004 (`app/api/mcp/user-notes/route.ts`, commit `20b536b`). Falta aplicar na `main`: cherry-pick só desse arquivo num hotfix e deploy. Exposição atual limitada (app OAuth em modo de teste, só usuários cadastrados). **Fazer antes da avaliação.**
+- [ ] **COTA-01 · `USER_DAILY_TOKEN_CAP` na Vercel.** A pesquisa de exemplo gasta ~15 mil tokens; com o padrão do código (100 mil) o avaliador para em ~6 perguntas. Pôr **400000** nas variáveis da Vercel (conferir também `GLOBAL_DAILY_TOKEN_CAP`, padrão 2 milhões). Antes da avaliação.
+- [ ] **README-01 · Atualizar o "Roteiro de 3 minutos"** quando entrarem a R4-006 (passo "Consultou 1 nota do caderno") e a R4-011 (login sem a tela do Drive). Regravar o GIF se a tela inicial mudar.
 
 ## Tasks
 
@@ -146,11 +148,11 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [ ] R4094 Validação
 
 ### R4-010 · Primeira experiência (P0 pra demo)
-- [ ] R4101 Tela de boas-vindas quando o usuário não tem conversas
-- [ ] R4102 "Ver uma pesquisa de exemplo" dispara pergunta curada
-- [ ] R4103 Painel "O que observar" (4 itens, persistido em `localStorage`, dispensável)
-- [ ] R4104 Roteiro de 3 minutos + GIF no README
-- [ ] R4105 Validação com conta sem conversas (criar conta de teste ou filtrar)
+- [x] R4101 Tela de boas-vindas quando o usuário não tem conversas
+- [x] R4102 "Ver uma pesquisa de exemplo" dispara pergunta curada
+- [x] R4103 Painel "O que observar" (4 itens, persistido em `localStorage`, dispensável)
+- [x] R4104 Roteiro de 3 minutos + GIF no README
+- [x] R4105 Validação com conta sem conversas (criar conta de teste ou filtrar)
 
 ### R4-011 · Login sem pedir o Drive (P3)
 - [ ] R4111 Login só com escopos básicos

@@ -5,7 +5,10 @@ import type { Source } from "./types"
  * As citações vêm prontas do provider (decisão em docs/round-4/decisions/citations.md):
  * - cada TextUIPart citado traz `citations: Array<{ citedText, source }>`, web e PDF;
  * - partes `source-document` repetem as citações de PDF, intercaladas;
- * - partes `source-url` logo após uma busca são RESULTADOS da busca, não citações.
+ * - partes `source-url` logo após uma busca são RESULTADOS da busca, não citações;
+ * - citações de página lida pelo `web_fetch` também vêm como `document`
+ *   (text/plain, char_location), com o título do resultado do fetch: viram
+ *   fonte web com a URL lida.
  */
 
 interface RawCitation {
@@ -63,11 +66,30 @@ interface Candidate {
   sourceId?: string
 }
 
-function candidateFromCitation(c: RawCitation): Candidate | null {
+/** título da página → URL, dos resultados do `web_fetch` da mensagem */
+type FetchedPages = Map<string, string>
+
+function fetchedPages(parts: AnyPart[]): FetchedPages {
+  const pages: FetchedPages = new Map()
+  for (const part of parts) {
+    if (part.type !== "tool-web_fetch") continue
+    const output = (part as { output?: { url?: unknown; content?: { title?: unknown } } }).output
+    const url = typeof output?.url === "string" ? output.url : undefined
+    const title = typeof output?.content?.title === "string" ? output.content.title : undefined
+    if (url) pages.set(title || url, url)
+  }
+  return pages
+}
+
+function candidateFromCitation(c: RawCitation, fetched: FetchedPages): Candidate | null {
   const s = c.source
   if (!s) return null
   if (s.sourceType === "url" && s.url) {
     return { kind: "web", title: s.title || domainOf(s.url), url: s.url, quote: c.citedText, sourceId: s.id }
+  }
+  const fetchedUrl = s.title ? fetched.get(s.title) : undefined
+  if (s.sourceType === "document" && fetchedUrl) {
+    return { kind: "web", title: s.title!, url: fetchedUrl, quote: c.citedText, sourceId: s.id }
   }
   if (s.sourceType === "document") {
     return {
@@ -113,11 +135,13 @@ function collect(message: UIMessage) {
     return s.index
   }
 
-  ;(message.parts as AnyPart[]).forEach((part, i) => {
+  const parts = message.parts as AnyPart[]
+  const fetched = fetchedPages(parts)
+  parts.forEach((part, i) => {
     if (part.type === "text" && Array.isArray(part.citations)) {
       const indexes: number[] = []
       for (const citation of part.citations) {
-        const c = candidateFromCitation(citation)
+        const c = candidateFromCitation(citation, fetched)
         if (!c) continue
         const index = add(c)
         if (!indexes.includes(index)) indexes.push(index)
@@ -125,6 +149,17 @@ function collect(message: UIMessage) {
       if (indexes.length > 0) byPart.set(i, indexes)
     } else if (part.type === "source-document") {
       const meta = part.providerMetadata?.anthropic
+      const fetchedUrl = part.title ? fetched.get(part.title) : undefined
+      if (fetchedUrl) {
+        add({
+          kind: "web",
+          title: part.title!,
+          url: fetchedUrl,
+          quote: typeof meta?.citedText === "string" ? meta.citedText : undefined,
+          sourceId: part.sourceId,
+        })
+        return
+      }
       add({
         kind: "document",
         title: part.title || part.filename || "Documento",

@@ -6,6 +6,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { toast } from "sonner"
 import { succeeded } from "@/lib/conversations/store"
 import type { CreateNoteInput } from "@/lib/notes/schema"
+import { markTour } from "@/lib/demo/tour"
 
 // Caderno no cliente (SPEC-R4-005): mesmo padrão da lista de conversas —
 // cache do React Query, mutações otimistas, apagar com "Desfazer".
@@ -79,6 +80,7 @@ export function useNoteActions() {
       const { note } = (await res.json()) as { note: NoteDTO }
       updateAllLists(client, (list) => [note, ...list])
       void client.invalidateQueries({ queryKey: ["notes-search"] })
+      markTour("note")
       toast.success("Guardado no caderno", {
         action: { label: "Abrir", onClick: () => router.push("/caderno") },
       })

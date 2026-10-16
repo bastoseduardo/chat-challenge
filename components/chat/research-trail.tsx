@@ -4,6 +4,7 @@ import { useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStepHighlight } from "./citations"
+import { markTour } from "@/lib/demo/tour"
 
 export interface ToolStep {
   key: string
@@ -134,7 +135,11 @@ function Step({ step, index }: { step: ToolStep; index: number }) {
       </span>
       <button
         type="button"
-        onClick={() => hasDetail && setOpen((v) => !v)}
+        onClick={() => {
+          if (!hasDetail) return
+          if (!open) markTour("trail")
+          setOpen((v) => !v)
+        }}
         aria-expanded={hasDetail ? open : undefined}
         disabled={!hasDetail}
         className="group/step flex items-center gap-1 text-left text-sm text-muted-foreground enabled:hover:text-foreground transition-colors pointer-coarse:py-1.5"
@@ -198,7 +203,10 @@ export function ResearchTrail({ steps, live }: { steps: ToolStep[]; live?: boole
       {!(live || anyRunning) && (
         <button
           type="button"
-          onClick={() => setExpanded(!isOpen)}
+          onClick={() => {
+            if (!isOpen) markTour("trail")
+            setExpanded(!isOpen)
+          }}
           aria-expanded={isOpen}
           data-highlight={anyHighlighted || undefined}
           className="flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground hover:text-foreground transition-colors data-[highlight]:bg-tool-soft data-[highlight]:text-foreground pointer-coarse:py-2"
