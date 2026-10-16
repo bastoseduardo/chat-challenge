@@ -39,3 +39,11 @@ O link compartilhado deixa de ser "uma conversa" e vira um documento que dá pra
 
 ## Riscos
 - `create or replace function` roda no banco de produção. **Mitigação:** a v2 só **adiciona** campos ao JSON; o código antigo ignora campos extras.
+
+## Notas da implementação (2026-10-16)
+- Migração `0005_share_summary.sql` e função `006_share_function_v2.sql` aplicadas (só acrescentam; a `main` ignora o objeto `share` novo).
+- Resumo: `lib/ai/share-summary.ts`, transcrição via `textWithCitations` (sem marcas), conversas longas mantêm começo e fim (40k caracteres). Medido: link + resumo em 7,5 s.
+- **Numeração:** cada resposta mantém as próprias fontes [n] e a lista dela (também no PDF). A seção final "Fontes consultadas" é agregada (`aggregateSources`) e **sem números**, pra não conflitar com os [n] das respostas.
+- PDF via `window.print()` + `@media print` (tema claro forçado, contêiner de rolagem vira bloco). Validado com `page.pdf()`: A4, 2 páginas.
+- Validado: diálogo (gerar, gerar de novo, revogar), relatório deslogado desktop/mobile, OG, axe sem violações, link revogado mostra "Compartilhamento inválido".
+

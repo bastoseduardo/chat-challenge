@@ -140,6 +140,9 @@ export const shares = pgTable(
       .notNull()
       .references(() => profiles.id),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Relatório compartilhável (SPEC-R4-007, migração 0005)
+    summary: text("summary"),
+    summaryGeneratedAt: timestamp("summary_generated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("shares_token_idx").on(t.token)]

@@ -125,13 +125,13 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [ ] R4065 Validação: guardar nota → conversa nova → passo aparece e a resposta usa a nota
 
 ### R4-007 · Relatório compartilhável (P1)
-- [ ] R4071 Coluna `shares.summary` + `summary_generated_at`
-- [ ] R4072 Geração do resumo ao compartilhar + "Gerar de novo"
-- [ ] R4073 `drizzle/sql/006_share_function_v2.sql` devolvendo `summary`
-- [ ] R4074 Página de relatório: cabeçalho, resumo, conversa, "Fontes consultadas"
-- [ ] R4075 CSS de impressão + "Baixar PDF"
-- [ ] R4076 Open Graph (título + resumo)
-- [ ] R4077 Validação: deslogado, desktop/mobile, PDF impresso
+- [x] R4071 Coluna `shares.summary` + `summary_generated_at`
+- [x] R4072 Geração do resumo ao compartilhar + "Gerar de novo"
+- [x] R4073 `drizzle/sql/006_share_function_v2.sql` devolvendo `summary` (+ migração `0005_share_summary.sql`)
+- [x] R4074 Página de relatório: cabeçalho, resumo, conversa, "Fontes consultadas"
+- [x] R4075 CSS de impressão + "Baixar PDF"
+- [x] R4076 Open Graph (título + resumo)
+- [x] R4077 Validação: deslogado, desktop/mobile, PDF impresso
 
 ### R4-008 · Editar e reenviar (P2)
 - [ ] R4081 Coluna `messages.deleted_at` + filtros em `buildContext`, listagem, export e função de share

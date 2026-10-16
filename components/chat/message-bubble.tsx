@@ -179,7 +179,7 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate }: Messag
       {!isStreaming && hasText && (
         <div
           className={cn(
-            "flex items-center gap-1 pt-1 text-muted-foreground transition-opacity",
+            "flex items-center gap-1 pt-1 text-muted-foreground transition-opacity print:hidden",
             "opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
             isLast && "opacity-100"
           )}

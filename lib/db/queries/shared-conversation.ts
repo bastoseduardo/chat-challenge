@@ -9,6 +9,12 @@ interface SharedRow {
     created_at: string
     compaction_count: number
   }
+  /** v2 da função (drizzle/sql/006_share_function_v2.sql); ausente na v1. */
+  share?: {
+    summary: string | null
+    summary_generated_at: string | null
+    created_at: string
+  }
   messages: Array<{
     id: string
     role: string
@@ -34,6 +40,7 @@ export async function loadSharedConversation(
   token: string
 ): Promise<{
   conversation: SharedRow["conversation"]
+  share: SharedRow["share"] | null
   messages: UIMessage[]
 } | null> {
   const supabase = createServiceClient()
@@ -147,5 +154,5 @@ export async function loadSharedConversation(
     })
   }
 
-  return { conversation: shared.conversation, messages }
+  return { conversation: shared.conversation, share: shared.share ?? null, messages }
 }
