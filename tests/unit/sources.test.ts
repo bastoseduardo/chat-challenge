@@ -75,6 +75,31 @@ describe("extractSources", () => {
     expect(s[0]).toMatchObject({ kind: "document", pages: { start: 2, end: 2 }, quotes: ["trecho"] })
   })
 
+  it("trata citação de página lida pelo web_fetch (document text/plain) como fonte web", () => {
+    const url = "https://www.postgresql.org/support/versioning/"
+    const title = "PostgreSQL: Versioning Policy"
+    const fetched = {
+      citedText: "| 18 | 18.6 | Yes |",
+      source: {
+        type: "source",
+        sourceType: "document",
+        id: "0",
+        title,
+        mediaType: "text/plain",
+        providerMetadata: { anthropic: { type: "char_location", cited_text: "| 18 | 18.6 | Yes |" } },
+      },
+    }
+    const m = msg([
+      { type: "tool-web_fetch", toolCallId: "t1", state: "output-available", input: { url }, output: { url, type: "web_fetch_result", content: { type: "document", title } } },
+      { type: "text", text: "Suporte até 2030.", citations: [fetched] },
+      { type: "source-document", sourceId: "s1", mediaType: "text/plain", title, providerMetadata: { anthropic: { citedText: "| 18 | 18.6 | Yes |" } } },
+    ])
+    const s = extractSources(m)
+    expect(s).toHaveLength(1)
+    expect(s[0]).toMatchObject({ kind: "web", url, domain: "postgresql.org", title })
+    expect(sourceLabel(s[0])).toBe("postgresql.org")
+  })
+
   it("devolve vazio quando a mensagem não tem fontes", () => {
     expect(extractSources(msg([{ type: "text", text: "Olá" }]))).toEqual([])
   })
