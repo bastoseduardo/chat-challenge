@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { UIMessage } from "ai"
-import { citationsByPart, extractSources, footnotesMarkdown, sourceLabel, textWithCitations } from "@/lib/sources/extract"
+import { aggregateSources, citationsByPart, extractSources, footnotesMarkdown, sourceLabel, textWithCitations } from "@/lib/sources/extract"
 
 // Formato real observado no spike (docs/round-4/decisions/citations.md).
 const web = (url: string, citedText: string, title = "Título") => ({
@@ -119,5 +119,15 @@ describe("textWithCitations", () => {
     expect(footnotesMarkdown(extractSources(m))).toBe(
       "[^1]: Versioning, https://www.postgresql.org/x\n[^2]: paper.pdf, p. 3"
     )
+  })
+})
+
+describe("aggregateSources", () => {
+  it("junta fontes de várias respostas sem repetir", () => {
+    const a = msg([{ type: "text", text: "a", citations: [web("https://a.com", "1"), web("https://b.com", "2")] }])
+    const b = msg([{ type: "text", text: "b", citations: [web("https://b.com", "3"), doc(3, 4, "d")] }])
+    const all = aggregateSources([a, b])
+    expect(all.map((s) => s.url ?? s.title)).toEqual(["https://a.com", "https://b.com", "paper.pdf"])
+    expect(all[1].quotes).toEqual(["2", "3"])
   })
 })

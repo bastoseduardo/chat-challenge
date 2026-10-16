@@ -197,3 +197,26 @@ export function footnotesMarkdown(sources: Source[]): string {
     .map((s) => `[^${s.index}]: ${s.kind === "web" ? `${s.title}, ${s.url}` : sourceLabel(s)}`)
     .join("\n")
 }
+
+/**
+ * Fontes de várias mensagens, sem repetição (mesma URL, ou mesmo documento e
+ * páginas). A numeração devolvida é só de ordem; cada resposta mantém a sua.
+ */
+export function aggregateSources(messages: UIMessage[]): Source[] {
+  const out: Source[] = []
+  const seen = new Map<string, Source>()
+  for (const m of messages) {
+    for (const s of extractSources(m)) {
+      const key = s.kind === "web" ? `web:${s.url}` : `doc:${s.title}:${s.pages?.start ?? ""}-${s.pages?.end ?? ""}`
+      const existing = seen.get(key)
+      if (existing) {
+        for (const q of s.quotes) if (!existing.quotes.includes(q)) existing.quotes.push(q)
+        continue
+      }
+      const copy = { ...s, index: out.length + 1, quotes: [...s.quotes], sourceIds: [...s.sourceIds] }
+      seen.set(key, copy)
+      out.push(copy)
+    }
+  }
+  return out
+}
