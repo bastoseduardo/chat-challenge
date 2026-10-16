@@ -42,10 +42,14 @@ export async function assertRateLimit(opts: {
     returning window_start, count
   `)
 
-  const row = (rows as unknown as { rows: Array<{ window_start: string; count: number }> }).rows?.[0]
+  // postgres-js devolve as linhas como array (o node-postgres usa `.rows`).
+  // Ler só `.rows` deixava o limite sempre aberto.
+  type Bucket = { window_start: string | Date; count: number | string }
+  const list = (Array.isArray(rows) ? rows : (rows as unknown as { rows?: Bucket[] }).rows) as Bucket[] | undefined
+  const row = list?.[0]
   if (!row) return // fallback: não bloqueia se não deu pra ler
 
-  if (row.count > limit) {
+  if (Number(row.count) > limit) {
     const windowStart = new Date(row.window_start).getTime()
     const retryAfterMs = Math.max(0, windowStart + windowMs - Date.now())
     throw new RateLimitError(key, limit, Math.ceil(retryAfterMs / 1000))

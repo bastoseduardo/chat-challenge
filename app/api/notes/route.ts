@@ -4,6 +4,24 @@ import { createNote, listNotes } from "@/lib/db/queries/notes"
 import { createNoteSchema, listNotesQuerySchema } from "@/lib/notes/schema"
 import { assertRateLimit, RateLimitError } from "@/lib/rate-limit"
 import { logAudit } from "@/lib/audit/log"
+import { db } from "@/lib/db/client"
+import { messages } from "@/lib/db/schema"
+import { getConversation } from "@/lib/db/queries/conversations"
+import { and, eq } from "drizzle-orm"
+
+/** A origem da nota (conversa e mensagem) precisa ser do próprio usuário. */
+async function ownsOrigin(userId: string, conversationId?: string, messageId?: string) {
+  if (messageId && !conversationId) return false
+  if (!conversationId) return true
+  if (!(await getConversation(conversationId, userId))) return false
+  if (!messageId) return true
+  const [m] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.conversationId, conversationId)))
+    .limit(1)
+  return !!m
+}
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -43,6 +61,10 @@ export async function POST(req: NextRequest) {
   const parsed = createNoteSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid", details: parsed.error.flatten() }, { status: 400 })
+  }
+
+  if (!(await ownsOrigin(user.id, parsed.data.conversationId, parsed.data.messageId))) {
+    return NextResponse.json({ error: "invalid_origin" }, { status: 400 })
   }
 
   const note = await createNote(user.id, parsed.data)

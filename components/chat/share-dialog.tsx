@@ -54,7 +54,13 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     setToken(data.token)
     setSummary(data.summary ?? null)
     markTour("share")
-    if (!data.summary) toast.info("Link criado. O resumo não pôde ser gerado agora.")
+    if (data.summaryError === "quota") {
+      toast.info("Resumo não gerado: a cota diária de uso acabou. O link funciona normalmente.")
+    } else if (data.summaryError === "rate_limited") {
+      toast.info("Muitos resumos seguidos. Espere um minuto pra gerar de novo.")
+    } else if (!data.summary) {
+      toast.info("Link criado. O resumo não pôde ser gerado agora.")
+    }
   }
 
   async function revoke() {
