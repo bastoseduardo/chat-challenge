@@ -17,10 +17,11 @@ compartilhamento read-only, auto-compactação de contexto, governança de uso e
 1. Entre com Google. Numa conta sem conversas, a tela inicial tem **"Ver uma pesquisa de exemplo"**: clique e acompanhe a trilha de pesquisa andar ao vivo; a resposta chega com marcações [1] [2].
 2. Passe o mouse num **[1]**: aparece o trecho citado e a fonte, com "Abrir fonte". Passe o mouse num passo da trilha: as marcações que vieram dele acendem.
 3. **Selecione uma frase** da resposta e clique em "Guardar no caderno". Abra **Caderno** na barra lateral: a nota está lá, com a fonte e o link de volta pra mensagem.
-4. Anexe um PDF (arraste pra conversa) e pergunte algo sobre ele: a citação mostra a página ("paper.pdf, p. 4").
-5. **Compartilhar** → "Gerar link do relatório": abra o link. É um relatório com resumo, a conversa citada e as fontes consultadas, com "Baixar PDF".
+4. Comece uma **conversa nova** com uma pergunta relacionada (ex.: "até quando o Postgres 18 recebe correções?"): a resposta mostra "Consultou 1 nota do caderno" e usa o que você guardou.
+5. Anexe um PDF (arraste pra conversa) e pergunte algo sobre ele: a citação mostra a página ("paper.pdf, p. 4").
+6. **Compartilhar** → "Gerar link do relatório": abra o link. É um relatório com resumo, a conversa citada e as fontes consultadas, com "Baixar PDF".
 
-O painel **"O que observar"**, no canto da conversa, marca sozinho cada item conforme você passa por ele.
+O painel **"O que observar"**, no canto da conversa, marca sozinho cada item conforme você passa por ele. Errou a pergunta? Passe o mouse nela e use o lápis pra editar e reenviar.
 
 ---
 
