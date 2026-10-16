@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments, toolInvocations } from "@/lib/db/schema"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq, isNull } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import type { UIMessage } from "ai"
 
@@ -35,7 +35,7 @@ export async function listMessagesWithAttachments(
   const rows = await db
     .select()
     .from(messages)
-    .where(eq(messages.conversationId, conversationId))
+    .where(and(eq(messages.conversationId, conversationId), isNull(messages.deletedAt)))
     .orderBy(asc(messages.createdAt))
 
   const result: UIMessage[] = []
@@ -43,6 +43,19 @@ export async function listMessagesWithAttachments(
   for (const row of rows) {
     if (row.isSummary) continue
     const basePartsRaw = Array.isArray(row.content) ? (row.content as Part[]) : []
+
+    // Formato novo (SPEC-R4-001): a resposta foi salva com as parts completas
+    // do stream (ferramentas, fontes, citações). Usar como está. Mensagens
+    // antigas só têm texto e são remontadas abaixo a partir de tool_invocations.
+    if (row.role === "assistant" && basePartsRaw.some((p) => p.type !== "text")) {
+      result.push({
+        id: row.id,
+        role: "assistant",
+        parts: basePartsRaw as unknown as UIMessage["parts"],
+        ...(row.model && { metadata: { model: row.model } }),
+      })
+      continue
+    }
     const textParts: TextPart[] = basePartsRaw.filter(
       (p): p is TextPart => p.type === "text"
     )
@@ -95,6 +108,7 @@ export async function listMessagesWithAttachments(
       id: row.id,
       role: row.role as UIMessage["role"],
       parts: parts as unknown as UIMessage["parts"],
+      ...(row.role === "assistant" && row.model && { metadata: { model: row.model } }),
     })
   }
 

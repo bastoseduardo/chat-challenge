@@ -19,11 +19,14 @@ const EVENT_TYPES = [
   "conversation.unshared",
   "message.sent",
   "message.received",
+  "message.edited",
   "tool.invoked",
   "attachment.uploaded",
   "compaction.executed",
   "quota.exceeded",
   "mcp.server.connected",
+  "note.created",
+  "note.deleted",
 ]
 
 interface AuditEvent {

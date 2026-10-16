@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@/lib/utils"
 import { Clock, FileText, Globe, NotebookPen, type LucideIcon } from "lucide-react"
 
 interface Starter {
@@ -40,25 +41,39 @@ export function EmptyState({
       <p className="mt-2 max-w-[52ch] text-muted-foreground">
         O assistente pesquisa na web, lê páginas, PDFs e imagens, e guarda notas pra você.
       </p>
-      <ul className="mt-8 grid gap-1 sm:grid-cols-2">
-        {STARTERS.map(({ icon: Icon, label, prompt }) => (
-          <li key={label}>
-            <button
-              type="button"
-              onClick={() => (prompt ? onPrompt(prompt) : onPickFiles())}
-              className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left hover:bg-accent transition-colors"
-            >
-              <Icon className="mt-0.5 size-[18px] shrink-0 text-tool" aria-hidden />
-              <span className="min-w-0">
-                <span className="block font-medium">{label}</span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {prompt ?? "Anexe um arquivo e peça um resumo"}
-                </span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <StarterList className="mt-8" onPrompt={onPrompt} onPickFiles={onPickFiles} />
     </div>
+  )
+}
+
+export function StarterList({
+  onPrompt,
+  onPickFiles,
+  className,
+}: {
+  onPrompt: (text: string) => void
+  onPickFiles: () => void
+  className?: string
+}) {
+  return (
+    <ul className={cn("grid grid-cols-1 gap-1 sm:grid-cols-2", className)}>
+      {STARTERS.map(({ icon: Icon, label, prompt }) => (
+        <li key={label}>
+          <button
+            type="button"
+            onClick={() => (prompt ? onPrompt(prompt) : onPickFiles())}
+            className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left hover:bg-accent transition-colors"
+          >
+            <Icon className="mt-0.5 size-[18px] shrink-0 text-tool" aria-hidden />
+            <span className="min-w-0">
+              <span className="block font-medium">{label}</span>
+              <span className="block truncate text-sm text-muted-foreground">
+                {prompt ?? "Anexe um arquivo e peça um resumo"}
+              </span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }

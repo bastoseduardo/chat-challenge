@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/service"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 
 /**
  * Login de desenvolvimento, sem Google: gera um magic link via service role
@@ -34,6 +35,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: verifyError.message }, { status: 500 })
   }
 
-  const next = request.nextUrl.searchParams.get("next") ?? "/"
-  return NextResponse.redirect(new URL(next.startsWith("/") ? next : "/", request.url))
+  return NextResponse.redirect(safeRedirect(request.nextUrl.searchParams.get("next"), request.url))
 }

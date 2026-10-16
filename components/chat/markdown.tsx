@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
 import { Check, Copy } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CitationMarks, rehypeCitationMarks } from "./citations"
 
 const LANGUAGE_NAMES: Record<string, string> = {
   js: "JavaScript",
@@ -82,13 +83,35 @@ const components: Components = {
   ),
 }
 
-export function Markdown({ text, reading }: { text: string; reading?: boolean }) {
+// Com citações: o plugin troca os marcadores invisíveis por <sup data-cite>,
+// renderizado como as marcações [n] (components/chat/citations.tsx).
+const citationComponents: Components = {
+  ...components,
+  sup: ({ node, children, ...props }) => {
+    const cite = node?.properties?.dataCite
+    if (typeof cite === "string") {
+      return <CitationMarks indexes={cite.split(",").map(Number).filter(Boolean)} />
+    }
+    return <sup {...props}>{children}</sup>
+  },
+}
+
+export function Markdown({
+  text,
+  reading,
+  citations,
+}: {
+  text: string
+  reading?: boolean
+  /** texto contém marcadores de citação (citeMarker) */
+  citations?: boolean
+}) {
   return (
     <div className={cn("markdown", reading && "markdown-reading")}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
-        components={components}
+        rehypePlugins={citations ? [rehypeHighlight, rehypeCitationMarks] : [rehypeHighlight]}
+        components={citations ? citationComponents : components}
       >
         {text}
       </ReactMarkdown>

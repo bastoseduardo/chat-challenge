@@ -1,7 +1,9 @@
-import { generateText } from "ai"
-import { eq, and, gt, sql, asc } from "drizzle-orm"
+import { generateText, type UIMessage } from "ai"
+import { textWithCitations } from "@/lib/sources/extract"
+import { eq, and, isNull, sql, asc } from "drizzle-orm"
 import { after } from "next/server"
 import { db } from "@/lib/db/client"
+import { loadWindowStart } from "@/lib/ai/context-window"
 import { conversations, messages } from "@/lib/db/schema"
 import { getModel } from "@/lib/ai/client"
 import { DEFAULT_MODEL, MODEL_CTX_WINDOW } from "@/lib/ai/pricing"
@@ -60,19 +62,20 @@ export async function compactIfNeeded(opts: {
     return { compacted: false, reason: "below_threshold" }
   }
 
-  // Pega msgs desde o último summary
-  const [lastSummary] = await db
-    .select()
-    .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true)))
-    .orderBy(sql`${messages.createdAt} desc`)
-    .limit(1)
-
-  const since = lastSummary?.createdAt ?? new Date(0)
+  // Mensagens depois da última resumida (as recentes mantidas na compactação
+  // anterior entram de novo; o resumo anterior vai junto no prompt).
+  const { lastSummary, afterStart } = await loadWindowStart(conversationId)
   const windowRows = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since)))
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        afterStart,
+        eq(messages.isSummary, false),
+        isNull(messages.deletedAt)
+      )
+    )
     .orderBy(asc(messages.createdAt))
 
   const minToSummarize = force ? 2 : 4
@@ -82,7 +85,7 @@ export async function compactIfNeeded(opts: {
 
   const keepRecent = force ? Math.min(KEEP_RECENT, Math.max(2, windowRows.length - 2)) : KEEP_RECENT
   const toSummarize = windowRows.slice(0, windowRows.length - keepRecent)
-  const prompt = buildSummaryPrompt(toSummarize)
+  const prompt = buildSummaryPrompt(toSummarize, lastSummary ? extractText(lastSummary.content) : null)
 
   const result = await generateText({
     model: getModel(model || DEFAULT_MODEL),
@@ -147,11 +150,14 @@ export async function compactIfNeeded(opts: {
 }
 
 function buildSummaryPrompt(
-  rows: Array<{ role: string; content: unknown }>
+  rows: Array<{ role: string; content: unknown }>,
+  previousSummary: string | null
 ): string {
   const transcript = rows
     .map((r) => {
-      const text = extractText(r.content)
+      const text = Array.isArray(r.content)
+        ? textWithCitations({ id: "", role: r.role, parts: r.content } as unknown as UIMessage)
+        : extractText(r.content)
       return `${r.role.toUpperCase()}: ${text}`
     })
     .join("\n\n")
@@ -163,7 +169,13 @@ function buildSummaryPrompt(
 - Estado atual do raciocínio
 
 Escreva em markdown com seções (Decisões, Fatos, Pendências). Máximo 500 tokens.
+${previousSummary ? `
+Já existe um resumo do trecho anterior; incorpore o que ainda importa dele, porque o novo resumo vai substituí-lo.
 
+<previous_summary>
+${previousSummary}
+</previous_summary>
+` : ""}
 <conversation>
 ${transcript}
 </conversation>`

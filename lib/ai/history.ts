@@ -1,35 +1,26 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments as attachmentsTable } from "@/lib/db/schema"
-import { and, eq, gt, isNotNull, desc, asc } from "drizzle-orm"
+import { and, eq, isNotNull, isNull, asc } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
-import type { ModelMessage } from "ai"
+import { loadWindowStart } from "@/lib/ai/context-window"
+import type { ModelMessage, UIMessage } from "ai"
+import { textWithCitations } from "@/lib/sources/extract"
+
+export interface ConversationContext {
+  messages: ModelMessage[]
+  /** Resumo da compactação, pro `system` (o AI SDK 7 recusa mensagens system no histórico). */
+  summary: string | null
+}
 
 /**
  * Carrega o contexto da conversa pro modelo:
- * - Se há summary message, começa dela
- * - Depois lista mensagens criadas após o último summary
+ * - O último resumo de compactação vai à parte (`summary`), pro system prompt
+ * - Depois lista as mensagens após a última resumida (inclui as recentes que
+ *   a compactação manteve fora do resumo)
  * - Expande anexos (image/pdf) como content parts com bytes do Storage
  */
-export async function buildContext(conversationId: string): Promise<ModelMessage[]> {
-  const [lastSummary] = await db
-    .select()
-    .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true)))
-    .orderBy(desc(messages.createdAt))
-    .limit(1)
-
-  // Começa logo após a última mensagem resumida, não na data do resumo: a
-  // compactação mantém as mensagens recentes fora do resumo, e começar pela
-  // data do resumo as deixava de fora do contexto.
-  let since = lastSummary?.createdAt ?? new Date(0)
-  if (lastSummary?.summarizesUntilMessageId) {
-    const [cutoff] = await db
-      .select({ createdAt: messages.createdAt })
-      .from(messages)
-      .where(eq(messages.id, lastSummary.summarizesUntilMessageId))
-      .limit(1)
-    if (cutoff) since = cutoff.createdAt
-  }
+export async function buildContext(conversationId: string): Promise<ConversationContext> {
+  const { lastSummary, afterStart } = await loadWindowStart(conversationId)
 
   const rows = await db
     .select()
@@ -37,29 +28,22 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
     .where(
       and(
         eq(messages.conversationId, conversationId),
-        gt(messages.createdAt, since),
-        eq(messages.isSummary, false)
+        afterStart,
+        eq(messages.isSummary, false),
+        isNull(messages.deletedAt)
       )
     )
     .orderBy(asc(messages.createdAt))
 
   const out: ModelMessage[] = []
-
-  if (lastSummary) {
-    const summaryText = extractText(lastSummary.content)
-    out.push({
-      role: "system",
-      content:
-        "Resumo do histórico anterior (gerado por auto-compaction):\n\n" + summaryText,
-    })
-  }
+  const summary = lastSummary ? extractText(lastSummary.content).trim() || null : null
 
   for (const row of rows) {
     const parts = Array.isArray(row.content) ? (row.content as Array<Record<string, unknown>>) : []
-    const text = parts
-      .filter((p) => (p as { type?: string }).type === "text")
-      .map((p) => (p as { text?: string }).text ?? "")
-      .join("")
+    // Blocos de texto separados por uma ferramenta não podem sair colados
+    // ("Vou pesquisar.A resposta é X"): textWithCitations põe parágrafo entre
+    // etapas e mantém juntos os trechos citados da mesma frase.
+    const text = textWithCitations({ id: row.id, role: row.role, parts } as unknown as UIMessage)
 
     if (row.role === "user") {
       const content: Array<Record<string, unknown>> = []
@@ -78,6 +62,17 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
             data: url,
             mediaType: a.mimeType,
             filename: a.originalName ?? undefined,
+            // PDFs com citações nativas: a resposta traz trecho + página
+            // (SPEC-R4-003). A API exige citações em todos os documentos ou
+            // em nenhum; ligamos em todos os PDFs.
+            ...(a.mimeType === "application/pdf" && {
+              providerOptions: {
+                anthropic: {
+                  citations: { enabled: true },
+                  title: a.originalName ?? "documento.pdf",
+                },
+              },
+            }),
           })
         } catch (err) {
           console.error("[history] attachment URL failed:", err)
@@ -116,7 +111,13 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
     break
   }
 
-  return out
+  // Depois de um resumo, o trecho mantido pode começar por uma resposta; a API
+  // espera que a conversa comece pelo usuário.
+  if (summary && out[0]?.role === "assistant") {
+    out.unshift({ role: "user", content: "(Continuação da conversa resumida no system prompt.)" })
+  }
+
+  return { messages: out, summary }
 }
 
 function extractText(content: unknown): string {

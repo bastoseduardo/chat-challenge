@@ -335,3 +335,52 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Relatório compartilhado em PDF (SPEC-R4-007): botão "Baixar PDF" chama
+ * window.print(). A página rola dentro de um contêiner de altura fixa; na
+ * impressão ele vira bloco normal pra imprimir tudo. Cores do tema claro
+ * mesmo pra quem usa o escuro. A lista de fontes já mostra a URL por extenso.
+ */
+@media print {
+  :root,
+  .dark {
+    --background: #ffffff;
+    --foreground: #1a2029;
+    --card: #f7f8fa;
+    --card-foreground: #1a2029;
+    --muted: #eef1f4;
+    --muted-foreground: #4a5462;
+    --border: #d5dae1;
+    --primary: #2d5a8a;
+    --tool: #8a5a08;
+    --tool-soft: #f6ecd9;
+    --code-bg: #f3f5f7;
+    --hl-keyword: #8a3f8f;
+    --hl-string: #2f7a3e;
+    --hl-number: #8a5a08;
+    --hl-title: #2d5a8a;
+    --hl-comment: #5f6874;
+    --hl-attr: #a1442c;
+  }
+  @page {
+    margin: 16mm 14mm;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    height: auto !important;
+  }
+  .report-shell,
+  .report-scroll {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .report-summary,
+  [id^="msg-"] blockquote,
+  .markdown pre,
+  .markdown table {
+    break-inside: avoid;
+  }
+}

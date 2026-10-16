@@ -9,6 +9,12 @@ interface SharedRow {
     created_at: string
     compaction_count: number
   }
+  /** v2 da função (drizzle/sql/006_share_function_v2.sql); ausente na v1. */
+  share?: {
+    summary: string | null
+    summary_generated_at: string | null
+    created_at: string
+  }
   messages: Array<{
     id: string
     role: string
@@ -30,10 +36,18 @@ type DynamicToolPart = {
   errorText?: string
 }
 
+/**
+ * Partes que ficam fora do relatório público: as notas do caderno usadas como
+ * contexto (SPEC-R4-006) são privadas. A função SQL v4 já as remove; o filtro
+ * aqui cobre a v3 e qualquer leitura direta.
+ */
+const PRIVATE_PART_TYPES = new Set(["data-notes-used"])
+
 export async function loadSharedConversation(
   token: string
 ): Promise<{
   conversation: SharedRow["conversation"]
+  share: SharedRow["share"] | null
   messages: UIMessage[]
 } | null> {
   const supabase = createServiceClient()
@@ -96,8 +110,18 @@ export async function loadSharedConversation(
   const messages: UIMessage[] = []
   for (const m of visibleMessages) {
     const basePartsRaw = Array.isArray(m.content)
-      ? (m.content as Array<TextPart | FilePart>)
+      ? (m.content as Array<TextPart | FilePart>).filter((p) => !PRIVATE_PART_TYPES.has(p.type))
       : []
+
+    // Formato novo (SPEC-R4-001): parts completas salvas, inclusive citações.
+    if (m.role === "assistant" && basePartsRaw.some((p) => p.type !== "text")) {
+      messages.push({
+        id: m.id,
+        role: "assistant",
+        parts: basePartsRaw as unknown as UIMessage["parts"],
+      })
+      continue
+    }
     const textParts = basePartsRaw.filter((p): p is TextPart => p.type === "text")
     const fileParts: FilePart[] = basePartsRaw.filter(
       (p): p is FilePart => p.type === "file"
@@ -137,5 +161,5 @@ export async function loadSharedConversation(
     })
   }
 
-  return { conversation: shared.conversation, messages }
+  return { conversation: shared.conversation, share: shared.share ?? null, messages }
 }

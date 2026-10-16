@@ -21,6 +21,9 @@ import { ShareDialog } from "./share-dialog"
 import { useAttachments } from "./use-attachments"
 import { Composer, type ComposerHandle } from "./composer"
 import { EmptyState } from "./empty-state"
+import { Welcome } from "@/components/onboarding/welcome"
+import { TourPanel } from "@/components/onboarding/tour-panel"
+import { SAMPLE_PROMPT } from "@/lib/demo/sample-prompt"
 import { activityLabel } from "./research-trail"
 import { QuotaDialog } from "./quota-dialog"
 import { ContextIndicator } from "./context-indicator"
@@ -32,6 +35,7 @@ import {
   statsKey,
   succeeded,
   useConversationCache,
+  useConversations,
   useConversationTitle,
   type ConversationStats,
 } from "@/lib/conversations/store"
@@ -67,6 +71,8 @@ interface ChatViewProps {
   model?: string
   systemPrompt?: string | null
   initialMessages?: UIMessage[]
+  /** Força as boas-vindas (`/c/new?welcome=1`, só em dev). */
+  forceWelcome?: boolean
 }
 
 export function ChatView({
@@ -77,6 +83,7 @@ export function ChatView({
   model = DEFAULT_MODEL,
   systemPrompt = null,
   initialMessages = [],
+  forceWelcome = false,
 }: ChatViewProps) {
   const queryClient = useQueryClient()
   const cache = useConversationCache()
@@ -85,6 +92,9 @@ export function ChatView({
   const [started, setStarted] = useState(!!existingId)
   const creatingRef = useRef<Promise<void> | null>(existingId ? Promise.resolve() : null)
   const title = useConversationTitle(conversationId, initialTitle)
+  const { data: conversations } = useConversations()
+  // Boas-vindas só pra quem ainda não tem nenhuma conversa (SPEC-R4-010).
+  const [welcome] = useState(() => forceWelcome || (!existingId && conversations?.length === 0))
 
   const [input, setInput] = useState("")
   const [shareOpen, setShareOpen] = useState(false)
@@ -118,6 +128,15 @@ export function ChatView({
     resize: "smooth",
   })
 
+  // As boas-vindas são mais altas que a tela no celular: começam do topo, sem
+  // o "grudar no fim" (o primeiro envio volta a grudar).
+  useEffect(() => {
+    if (!welcome || initialMessages.length > 0) return
+    stopScroll()
+    scrollRef.current?.scrollTo({ top: 0 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Título da aba acompanha o da conversa (inclusive depois do replaceState
   // da nova conversa e de renomear), sem consultar o servidor.
   useEffect(() => {
@@ -137,7 +156,7 @@ export function ChatView({
     return () => cancelAnimationFrame(frame)
   }, [stopScroll])
 
-  const { messages, sendMessage, regenerate, stop, status, error } = useChat({
+  const { messages, sendMessage, regenerate, setMessages, stop, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -216,6 +235,40 @@ export function ChatView({
     void regenerate()
   }, [regenerate])
 
+  // Editar e reenviar (SPEC-R4-008): apaga no servidor a pergunta e o que veio
+  // depois, corta a lista local e envia o texto novo. Anexos não são reenviados.
+  const messagesRef = useRef(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+  const handleEdit = useCallback(
+    async (message: UIMessage, text: string) => {
+      const res = await fetch(`/api/conversations/${conversationId}/truncate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fromMessageId: message.id }),
+      }).catch(() => null)
+      if (res?.status === 409) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string }
+        toast.error(data.message ?? "Essa parte da conversa não pode ser editada.")
+        return false
+      }
+      if (!succeeded(res)) {
+        toast.error("Não foi possível editar. Tente de novo.")
+        return false
+      }
+      const current = messagesRef.current
+      const idx = current.findIndex((m) => m.id === message.id)
+      setMessages(idx >= 0 ? current.slice(0, idx) : current)
+      void scrollToBottom()
+      void sendMessage({ text }, { body: { attachments: [] } }).catch((err) =>
+        toast.error(err instanceof Error ? err.message : "Erro ao enviar")
+      )
+      return true
+    },
+    [conversationId, setMessages, sendMessage, scrollToBottom]
+  )
+
   // Primeiro envio numa conversa nova: cria a linha, troca a URL sem navegar
   // e coloca a conversa no topo da sidebar.
   async function startConversation() {
@@ -230,8 +283,8 @@ export function ChatView({
     setStarted(true)
   }
 
-  async function handleSubmit() {
-    const text = input.trim()
+  async function handleSubmit(override?: string) {
+    const text = (override ?? input).trim()
     if (!text && attach.ready.length === 0) return
     if (attach.isUploading) {
       toast.info("Aguarde o upload terminar")
@@ -294,6 +347,8 @@ export function ChatView({
   const activity = useMemo(() => {
     if (!isLoading) return null
     if (!last || last.role === "user") return "Pensando…"
+    // Só as notas do caderno chegaram (parte data-*): ainda pensando.
+    if (last.parts.every((p) => p.type.startsWith("data-") || p.type === "step-start")) return "Pensando…"
     const parts = last.parts as Parameters<typeof toolStepOf>[0][]
     for (let i = parts.length - 1; i >= 0; i--) {
       const step = toolStepOf(parts[i], String(i))
@@ -396,7 +451,17 @@ export function ChatView({
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRef} className="h-full overflow-y-auto">
             <div ref={contentRef} className="mx-auto max-w-3xl space-y-7 px-4 py-6 sm:px-6">
-              {messages.length === 0 && (
+              {messages.length === 0 && welcome && (
+                <Welcome
+                  onSample={() => void handleSubmit(SAMPLE_PROMPT)}
+                  onPrompt={(text) => {
+                    setInput(text)
+                    composerRef.current?.focus()
+                  }}
+                  onPickFiles={() => composerRef.current?.pickFiles()}
+                />
+              )}
+              {messages.length === 0 && !welcome && (
                 <EmptyState
                   onPrompt={(text) => {
                     setInput(text)
@@ -414,10 +479,13 @@ export function ChatView({
                     isLast={isLast}
                     isStreaming={isLast && isLoading && m.role === "assistant"}
                     onRegenerate={handleRegenerate}
+                    conversationId={started ? conversationId : undefined}
+                    onEdit={started ? handleEdit : undefined}
+                    editDisabled={isLoading}
                   />
                 )
               })}
-              {isLoading && last?.role === "user" && (
+              {isLoading && activity === "Pensando…" && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" aria-hidden />
                   Pensando…
@@ -440,7 +508,7 @@ export function ChatView({
               </p>
             </div>
           </div>
-          {!isAtBottom && (
+          {!isAtBottom && messages.length > 0 && (
             <Button
               type="button"
               variant="outline"
@@ -452,6 +520,7 @@ export function ChatView({
               Ir para o fim
             </Button>
           )}
+          {messages.length > 0 && <TourPanel />}
         </div>
 
         <Composer

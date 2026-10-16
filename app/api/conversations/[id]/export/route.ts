@@ -7,6 +7,8 @@ import {
 import { db } from "@/lib/db/client"
 import { attachments, toolInvocations } from "@/lib/db/schema"
 import { asc, eq } from "drizzle-orm"
+import type { UIMessage } from "ai"
+import { extractSources, footnotesMarkdown, textWithCitations } from "@/lib/sources/extract"
 
 export async function GET(
   req: NextRequest,
@@ -55,6 +57,9 @@ export async function GET(
   lines.push("---")
   lines.push("")
 
+  // Notas de rodapé com prefixo único por resposta (r1-1, r2-1...): só a
+  // numeração [n] se repete entre respostas.
+  let cited = 0
   for (const m of msgs) {
     if (m.isSummary) {
       lines.push(`### 📜 Compaction summary`)
@@ -107,7 +112,18 @@ export async function GET(
     }
 
     lines.push("")
-    lines.push(extractText(m.content))
+    // Respostas com citações (SPEC-R4-003): marcas [^n] no texto e notas de
+    // rodapé com as fontes. Mensagens antigas seguem só com o texto.
+    const asMessage = { id: m.id, role: m.role, parts: Array.isArray(m.content) ? m.content : [] } as unknown as UIMessage
+    const sources = m.role === "assistant" ? extractSources(asMessage) : []
+    if (sources.length) {
+      const tag = `r${++cited}`
+      lines.push(textWithCitations(asMessage, (ix) => ix.map((n) => `[^${tag}-${n}]`).join("")))
+      lines.push("")
+      lines.push(footnotesMarkdown(sources).replace(/^\[\^(\d+)\]/gm, (_, n) => `[^${tag}-${n}]`))
+    } else {
+      lines.push(m.role === "assistant" ? textWithCitations(asMessage) || extractText(m.content) : extractText(m.content))
+    }
     lines.push("")
     lines.push("---")
     lines.push("")

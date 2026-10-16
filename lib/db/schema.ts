@@ -51,6 +51,8 @@ export const userSettings = pgTable("user_settings", {
     .default(["web_search", "web_scrape", "get_current_time"]),
   mcpConfig: jsonb("mcp_config").notNull().default({}),
   defaultModel: text("default_model").notNull().default("claude-sonnet-4-6"),
+  /** SPEC-R4-006: notas parecidas com a pergunta entram como contexto. */
+  useNotesContext: boolean("use_notes_context").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -91,6 +93,8 @@ export const messages = pgTable(
     summarizesUntilMessageId: uuid("summarizes_until_message_id"),
     embedding: vector512("embedding"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** SPEC-R4-008: editar e reenviar apaga a mensagem editada e as seguintes. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
     index("messages_conv_idx").on(t.conversationId, t.createdAt),
@@ -140,6 +144,9 @@ export const shares = pgTable(
       .notNull()
       .references(() => profiles.id),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // Relatório compartilhável (SPEC-R4-007, migração 0005)
+    summary: text("summary"),
+    summaryGeneratedAt: timestamp("summary_generated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("shares_token_idx").on(t.token)]
@@ -186,14 +193,32 @@ export const auditEvents = pgTable(
   ]
 )
 
-export const userNotes = pgTable("user_notes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => profiles.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-})
+// Caderno (SPEC-R4-004). Colunas novas via drizzle/migrations/0004_caderno_notes.sql
+// (manual e idempotente, como a 0003).
+export const userNotes = pgTable(
+  "user_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    title: text("title"),
+    quote: text("quote"),
+    sourceUrl: text("source_url"),
+    sourceTitle: text("source_title"),
+    sourcePage: integer("source_page"),
+    conversationId: uuid("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
+    embedding: vector512("embedding"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("user_notes_user_created_idx").on(t.userId, t.createdAt)]
+)
 
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   key: text("key").primaryKey(),

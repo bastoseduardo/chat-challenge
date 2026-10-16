@@ -10,6 +10,19 @@ compartilhamento read-only, auto-compactação de contexto, governança de uso e
 
 **🔗 Deploy:** https://chat-challenge-six.vercel.app
 
+![Pesquisa de exemplo: a trilha anda ao vivo, a resposta chega com [1] [2], o cartão mostra o trecho citado e a frase vai pro caderno](docs/demo.gif)
+
+## Roteiro de 3 minutos
+
+1. Entre com Google. Numa conta sem conversas, a tela inicial tem **"Ver uma pesquisa de exemplo"**: clique e acompanhe a trilha de pesquisa andar ao vivo; a resposta chega com marcações [1] [2].
+2. Passe o mouse num **[1]**: aparece o trecho citado e a fonte, com "Abrir fonte". Passe o mouse num passo da trilha: as marcações que vieram dele acendem.
+3. **Selecione uma frase** da resposta e clique em "Guardar no caderno". Abra **Caderno** na barra lateral: a nota está lá, com a fonte e o link de volta pra mensagem.
+4. Comece uma **conversa nova** com uma pergunta relacionada (ex.: "até quando o Postgres 18 recebe correções?"): a resposta mostra "Consultou 1 nota do caderno" e usa o que você guardou.
+5. Anexe um PDF (arraste pra conversa) e pergunte algo sobre ele: a citação mostra a página ("paper.pdf, p. 4").
+6. **Compartilhar** → "Gerar link do relatório": abra o link. É um relatório com resumo, a conversa citada e as fontes consultadas, com "Baixar PDF".
+
+O painel **"O que observar"**, no canto da conversa, marca sozinho cada item conforme você passa por ele. Errou a pergunta? Passe o mouse nela e use o lápis pra editar e reenviar.
+
 ---
 
 ## Features
@@ -19,7 +32,7 @@ compartilhamento read-only, auto-compactação de contexto, governança de uso e
 | # | Requisito | Como atende |
 |---|---|---|
 | R1 | Múltiplas conversas + persistência | `conversations` + `messages` em Postgres, sidebar com rename/delete, histórico persistido entre sessões |
-| R2 | Tools (internet + web scraping) | `web_search` (Tavily), `web_scrape` (Jina Reader) nativas; toggle on/off em `/settings` |
+| R2 | Tools (internet + web scraping) | Busca e leitura de páginas nativas do Claude (`web_search` + `web_fetch`), com citações por trecho; Tavily + Jina Reader como alternativa (`WEB_TOOLS_PROVIDER=tavily`); toggle on/off em `/settings` |
 | R3 | Vision (imagens) | Upload direto pro Supabase Storage, injeção como content parts `type: "image"` nativos do Claude |
 | R4 | PDFs no chat | Mesmo pipeline das imagens, `type: "file"` + `mediaType: "application/pdf"` (vision nativo) |
 | R5 | Compartilhar conversa | Rota pública `/share/[token]` read-only via função Postgres `SECURITY DEFINER`, revogável |

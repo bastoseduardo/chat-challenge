@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { after } from "next/server"
-import { streamText, type UIMessage } from "ai"
+import { createUIMessageStream, createUIMessageStreamResponse, streamText, type UIMessage } from "ai"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages, attachments as attachmentsTable, userSettings } from "@/lib/db/schema"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, isNull, or, sql } from "drizzle-orm"
 import { getModel } from "@/lib/ai/client"
 import { DEFAULT_MODEL } from "@/lib/ai/pricing"
 import { assertWithinCaps, QuotaError } from "@/lib/usage/caps"
@@ -18,6 +18,9 @@ import { scheduleCompaction } from "@/lib/ai/compaction"
 import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
 import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
 import { embedAndStoreMessage } from "@/lib/db/queries/search"
+import { compactPartsForStorage } from "@/lib/ai/persist-parts"
+import { invalidateShareSummary } from "@/lib/share/invalidate"
+import { findContextNotes, notesUsedData, withNotesContext } from "@/lib/notes/context"
 
 export const maxDuration = 60
 
@@ -119,6 +122,20 @@ export async function POST(req: NextRequest) {
   }
 
   const lastUser = uiMessages[uiMessages.length - 1]
+  const userText =
+    lastUser?.role === "user"
+      ? (lastUser.parts ?? [])
+          .filter((p): p is { type: "text"; text: string } => (p as { type?: string }).type === "text")
+          .map((p) => p.text)
+          .join("\n")
+          .trim()
+      : ""
+  // Caderno como contexto (SPEC-R4-006): roda junto com o resto da preparação.
+  const notesPromise =
+    userText && settings?.useNotesContext !== false
+      ? findContextNotes(user.id, userText)
+      : Promise.resolve([])
+
   let userMessageId: string | null = null
   let isDuplicate = false
   if (lastUser?.role === "user") {
@@ -132,35 +149,64 @@ export async function POST(req: NextRequest) {
         return !url.startsWith("blob:")
       }
     )
-    // Idempotência: se o cliente mandou clientMessageId e esse par já existe, só pega o id.
-    const [inserted] = await db
-      .insert(messages)
-      .values({
-        conversationId,
-        clientMessageId: clientMessageId ?? null,
-        role: "user",
-        content: sanitizedParts as unknown as object,
-      })
-      .onConflictDoNothing({
-        target: [messages.conversationId, messages.clientMessageId],
-      })
-      .returning({ id: messages.id })
+    // Idempotência / "Gerar de novo": a pergunta reenviada já existe. Antes de
+    // recarregar, o cliente a conhece pelo id que ele gerou (client_message_id);
+    // depois de recarregar, pelo id do banco. Procura pelos dois.
+    const findExisting = () =>
+      clientMessageId
+        ? db
+            .select({ id: messages.id, createdAt: messages.createdAt })
+            .from(messages)
+            .where(
+              and(
+                eq(messages.conversationId, conversationId),
+                eq(messages.role, "user"),
+                isNull(messages.deletedAt),
+                or(sql`${messages.id}::text = ${clientMessageId}`, eq(messages.clientMessageId, clientMessageId))
+              )
+            )
+            .limit(1)
+            .then((rows) => rows[0])
+        : Promise.resolve(undefined)
 
-    if (inserted) {
-      userMessageId = inserted.id
-    } else if (clientMessageId) {
+    let existing = await findExisting()
+    if (!existing) {
+      const [inserted] = await db
+        .insert(messages)
+        .values({
+          conversationId,
+          clientMessageId: clientMessageId ?? null,
+          role: "user",
+          content: sanitizedParts as unknown as object,
+        })
+        .onConflictDoNothing({
+          target: [messages.conversationId, messages.clientMessageId],
+        })
+        .returning({ id: messages.id })
+      if (inserted) userMessageId = inserted.id
+      else existing = await findExisting() // corrida com um reenvio simultâneo
+    }
+
+    if (existing) {
       isDuplicate = true
-      const [existing] = await db
-        .select({ id: messages.id })
-        .from(messages)
+      userMessageId = existing.id
+      // A resposta anterior sai do histórico (soft delete), senão as duas
+      // voltariam ao recarregar e iriam pro contexto do modelo.
+      const removed = await db
+        .update(messages)
+        .set({ deletedAt: new Date() })
         .where(
           and(
             eq(messages.conversationId, conversationId),
-            eq(messages.clientMessageId, clientMessageId)
+            // Comparação no SQL (microssegundos): com o Date do JS (ms), a
+            // própria pergunta passava no ">" e era apagada junto.
+            sql`${messages.createdAt} > (select m.created_at from messages m where m.id = ${existing.id}::uuid)`,
+            eq(messages.isSummary, false),
+            isNull(messages.deletedAt)
           )
         )
-        .limit(1)
-      userMessageId = existing?.id ?? null
+        .returning({ id: messages.id })
+      if (removed.length > 0) await invalidateShareSummary(conversationId)
     }
 
     if (userMessageId && !isDuplicate && incomingAttachments.length > 0) {
@@ -185,6 +231,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Embedding em background (não bloqueia stream).
+    if (userMessageId && !isDuplicate && userText) {
+      after(() => embedAndStoreMessage(userMessageId!, userText))
+    }
+  }
+
+  // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
+  // (Attachments entram via buildContext como file parts com URL, não bytes.)
+  const [history, mcp, contextNotes] = await Promise.all([
+    buildContext(conversationId),
+    loadMcpTools({ userId: user.id, mcpConfig: settings?.mcpConfig }),
+    notesPromise,
+  ])
+
+  if (lastUser?.role === "user") {
     await logAudit({
       userId: user.id,
       eventType: "message.sent",
@@ -193,59 +254,43 @@ export async function POST(req: NextRequest) {
       metadata: {
         parts: lastUser.parts?.length ?? 0,
         attachments: incomingAttachments.length,
+        notes_used: contextNotes.length,
       },
     })
-
-    // Embedding em background (não bloqueia stream).
-    if (userMessageId && !isDuplicate) {
-      const userText = (lastUser.parts ?? [])
-        .filter(
-          (p): p is { type: "text"; text: string } =>
-            (p as { type?: string }).type === "text"
-        )
-        .map((p) => p.text)
-        .join("\n")
-        .trim()
-      if (userText) {
-        after(() => embedAndStoreMessage(userMessageId!, userText))
-      }
-    }
-  }
-
-  // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
-  // (Attachments entram via buildContext como file parts com URL, não bytes.)
-  const context = await buildContext(conversationId)
-  // O AI SDK 7 recusa mensagens `system` no histórico ("System messages are
-  // not allowed in the prompt or messages fields"): o resumo da compactação
-  // vai pro system prompt, senão a conversa para de responder após compactar.
-  const summaryText = context
-    .filter((m) => m.role === "system")
-    .map((m) => (typeof m.content === "string" ? m.content : ""))
-    .join("\n\n")
-    .trim()
-  const historyMessages = context.filter((m) => m.role !== "system")
-  if (summaryText && historyMessages[0]?.role === "assistant") {
-    historyMessages.unshift({ role: "user", content: "(Continuação da conversa resumida no system prompt.)" })
   }
 
   const builtinTools = getBuiltinTools({ enabled: enabledTools, driveToken })
-  const mcp = await loadMcpTools({
-    userId: user.id,
-    mcpConfig: settings?.mcpConfig,
-  })
   const allTools = { ...builtinTools, ...mcp.tools }
 
   // Prompt mínimo pra garantir que, após tool calls, o modelo sempre escreva
   // uma resposta final em texto pro usuário (evita conversas que terminam só
   // com tool_calls e sem text).
-  const BASE_SYSTEM = `You can call tools to gather info. ALWAYS end your turn with a plain-text reply to the user summarizing what you found; never stop mid-tool-chain without a response.`
+  const BASE_SYSTEM = `You can call tools to gather info. ALWAYS end your turn with a plain-text reply to the user summarizing what you found; never stop mid-tool-chain without a response.
+
+When you use web search, web fetch or attached documents, ground factual claims in those sources; citations are attached to your text automatically, so do not write your own reference markers or source lists. Prefer the search results; fetch a page only when the snippets are not enough. If part of the answer comes only from your own knowledge, say so briefly.`
   const userSystem = conv.systemPrompt?.trim()
-  const combinedSystem = [BASE_SYSTEM, userSystem, summaryText].filter(Boolean).join("\n\n")
+  // Resumo da compactação no fim do system: muda só quando há nova
+  // compactação, então o prefixo cacheado continua valendo entre turnos.
+  const combinedSystem = [
+    BASE_SYSTEM,
+    userSystem,
+    history.summary &&
+      `Resumo do histórico anterior desta conversa (gerado pela compactação automática):\n\n${history.summary}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+
+  // Id da resposta gerado aqui: é o mesmo no cliente (generateMessageId do
+  // stream) e em messages.id. Duas callbacks gravam a mesma linha via upsert:
+  // onFinish (tokens, uso, ferramentas) e onEnd (parts completas, inclusive
+  // citações). A ordem entre elas não importa; resposta interrompida também
+  // fica salva pelo onEnd.
+  const assistantMessageId = crypto.randomUUID()
 
   const result = streamText({
     model: getModel(model),
     system: combinedSystem,
-    messages: historyMessages,
+    messages: withNotesContext(history.messages, contextNotes),
     tools: allTools,
     // 10 steps dá folga pra 4-5 tool calls + resposta final. 5 era agressivo
     // demais e deixava conversas presas em "research mode" sem texto.
@@ -257,12 +302,19 @@ export async function POST(req: NextRequest) {
       const [inserted] = await db
         .insert(messages)
         .values({
+          id: assistantMessageId,
           conversationId,
           role: "assistant",
+          // Provisório: o onEnd grava as parts completas (se chegar antes, o
+          // conflito abaixo preserva o content dele).
           content: [{ type: "text", text }] as unknown as object,
           inputTokens,
           outputTokens,
           model,
+        })
+        .onConflictDoUpdate({
+          target: messages.id,
+          set: { inputTokens, outputTokens, model },
         })
         .returning({ id: messages.id })
 
@@ -316,15 +368,46 @@ export async function POST(req: NextRequest) {
   // O uso agregado vai no metadata da mensagem (evento `finish`) — o cliente
   // atualiza o indicador de contexto sem refresh nem polling. É o mesmo valor
   // gravado em conversations.total_*_tokens no onFinish acima.
-  return result.toUIMessageStreamResponse({
-    messageMetadata: ({ part }) => {
-      if (part.type !== "finish") return undefined
-      return {
-        usage: {
-          inputTokens: part.totalUsage.inputTokens ?? 0,
-          outputTokens: part.totalUsage.outputTokens ?? 0,
-        },
+  // As notas usadas vão antes da resposta como parte `data-notes-used`; o onEnd
+  // do stream externo vê todas as partes (inclusive essa) e grava a resposta.
+  const stream = createUIMessageStream({
+    originalMessages: uiMessages,
+    generateId: () => assistantMessageId,
+    execute: ({ writer }) => {
+      if (contextNotes.length > 0) {
+        writer.write({ type: "data-notes-used", data: notesUsedData(contextNotes) })
+      }
+      writer.merge(
+        result.toUIMessageStream({
+          sendSources: true,
+          generateMessageId: () => assistantMessageId,
+          messageMetadata: ({ part }) => {
+            // Modelo no início (rodapé da resposta, SPEC-R4-009); uso no fim.
+            if (part.type === "start") return { model }
+            if (part.type !== "finish") return undefined
+            return {
+              usage: {
+                inputTokens: part.totalUsage.inputTokens ?? 0,
+                outputTokens: part.totalUsage.outputTokens ?? 0,
+              },
+            }
+          },
+        })
+      )
+    },
+    onEnd: async ({ responseMessage, isAborted }) => {
+      if (responseMessage.role !== "assistant" || responseMessage.parts.length === 0) return
+      const content = compactPartsForStorage(responseMessage.parts) as unknown as object
+      try {
+        await db
+          .insert(messages)
+          .values({ id: assistantMessageId, conversationId, role: "assistant", content, model })
+          .onConflictDoUpdate({ target: messages.id, set: { content } })
+      } catch (err) {
+        console.error("[chat] falha ao salvar parts da resposta", { isAborted, err })
       }
     },
   })
+
+  return createUIMessageStreamResponse({ stream })
 }

@@ -10,11 +10,14 @@ export type AuditEventType =
   | "conversation.unshared"
   | "message.sent"
   | "message.received"
+  | "message.edited"
   | "tool.invoked"
   | "attachment.uploaded"
   | "compaction.executed"
   | "quota.exceeded"
   | "mcp.server.connected"
+  | "note.created"
+  | "note.deleted"
 
 export interface AuditPayload {
   userId: string | null
