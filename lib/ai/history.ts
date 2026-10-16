@@ -1,41 +1,41 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments as attachmentsTable } from "@/lib/db/schema"
-import { and, eq, gt, isNotNull, isNull, desc, asc } from "drizzle-orm"
+import { and, eq, gt, isNotNull, isNull, asc } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
+import { loadWindowStart } from "@/lib/ai/context-window"
 import type { ModelMessage } from "ai"
+
+export interface ConversationContext {
+  messages: ModelMessage[]
+  /** Resumo da compactação, pro `system` (o AI SDK 7 recusa mensagens system no histórico). */
+  summary: string | null
+}
 
 /**
  * Carrega o contexto da conversa pro modelo:
- * - Se há summary message, começa dela
- * - Depois lista mensagens criadas após o último summary
+ * - O último resumo de compactação vai à parte (`summary`), pro system prompt
+ * - Depois lista as mensagens após a última resumida (inclui as recentes que
+ *   a compactação manteve fora do resumo)
  * - Expande anexos (image/pdf) como content parts com bytes do Storage
  */
-export async function buildContext(conversationId: string): Promise<ModelMessage[]> {
-  const [lastSummary] = await db
-    .select()
-    .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true), isNull(messages.deletedAt)))
-    .orderBy(desc(messages.createdAt))
-    .limit(1)
-
-  const since = lastSummary?.createdAt ?? new Date(0)
+export async function buildContext(conversationId: string): Promise<ConversationContext> {
+  const { lastSummary, since } = await loadWindowStart(conversationId)
 
   const rows = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since), isNull(messages.deletedAt)))
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        gt(messages.createdAt, since),
+        eq(messages.isSummary, false),
+        isNull(messages.deletedAt)
+      )
+    )
     .orderBy(asc(messages.createdAt))
 
   const out: ModelMessage[] = []
-
-  if (lastSummary) {
-    const summaryText = extractText(lastSummary.content)
-    out.push({
-      role: "system",
-      content:
-        "Resumo do histórico anterior (gerado por auto-compaction):\n\n" + summaryText,
-    })
-  }
+  const summary = lastSummary ? extractText(lastSummary.content).trim() || null : null
 
   for (const row of rows) {
     const parts = Array.isArray(row.content) ? (row.content as Array<Record<string, unknown>>) : []
@@ -110,7 +110,13 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
     break
   }
 
-  return out
+  // Depois de um resumo, o trecho mantido pode começar por uma resposta; a API
+  // espera que a conversa comece pelo usuário.
+  if (summary && out[0]?.role === "assistant") {
+    out.unshift({ role: "user", content: "(Continuação da conversa resumida no system prompt.)" })
+  }
+
+  return { messages: out, summary }
 }
 
 function extractText(content: unknown): string {

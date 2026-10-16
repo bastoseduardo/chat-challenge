@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
 
   // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
   // (Attachments entram via buildContext como file parts com URL, não bytes.)
-  const [historyMessages, mcp, contextNotes] = await Promise.all([
+  const [history, mcp, contextNotes] = await Promise.all([
     buildContext(conversationId),
     loadMcpTools({ userId: user.id, mcpConfig: settings?.mcpConfig }),
     notesPromise,
@@ -254,7 +254,16 @@ export async function POST(req: NextRequest) {
 
 When you use web search, web fetch or attached documents, ground factual claims in those sources; citations are attached to your text automatically, so do not write your own reference markers or source lists. Prefer the search results; fetch a page only when the snippets are not enough. If part of the answer comes only from your own knowledge, say so briefly.`
   const userSystem = conv.systemPrompt?.trim()
-  const combinedSystem = userSystem ? `${BASE_SYSTEM}\n\n${userSystem}` : BASE_SYSTEM
+  // Resumo da compactação no fim do system: muda só quando há nova
+  // compactação, então o prefixo cacheado continua valendo entre turnos.
+  const combinedSystem = [
+    BASE_SYSTEM,
+    userSystem,
+    history.summary &&
+      `Resumo do histórico anterior desta conversa (gerado pela compactação automática):\n\n${history.summary}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 
   // Id da resposta gerado aqui: é o mesmo no cliente (generateMessageId do
   // stream) e em messages.id. Duas callbacks gravam a mesma linha via upsert:
@@ -266,7 +275,7 @@ When you use web search, web fetch or attached documents, ground factual claims 
   const result = streamText({
     model: getModel(model),
     system: combinedSystem,
-    messages: withNotesContext(historyMessages, contextNotes),
+    messages: withNotesContext(history.messages, contextNotes),
     tools: allTools,
     // 10 steps dá folga pra 4-5 tool calls + resposta final. 5 era agressivo
     // demais e deixava conversas presas em "research mode" sem texto.
