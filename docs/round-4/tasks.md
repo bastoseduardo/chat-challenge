@@ -120,11 +120,11 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [x] R4058 Validação (feita com roteiro Playwright logado; o E2E opcional `E2E_DEV_LOGIN=1` **não** foi escrito)
 
 ### R4-006 · Caderno como contexto (P1)
-- [ ] R4061 Busca das 3 notas mais similares por mensagem (limiar configurável)
-- [ ] R4062 Injeção como contexto marcado no `/api/chat`
-- [ ] R4063 Data part `data-notes-used` no stream + passo "Consultou N notas do caderno" na trilha
-- [ ] R4064 Interruptor em Configurações (`user_settings.use_notes_context`)
-- [ ] R4065 Validação: guardar nota → conversa nova → passo aparece e a resposta usa a nota
+- [x] R4061 Busca das 3 notas mais similares por mensagem (limiar configurável)
+- [x] R4062 Injeção como contexto marcado no `/api/chat`
+- [x] R4063 Data part `data-notes-used` no stream + passo "Consultou N notas do caderno" na trilha
+- [x] R4064 Interruptor em Configurações (`user_settings.use_notes_context`)
+- [x] R4065 Validação: guardar nota → conversa nova → passo aparece e a resposta usa a nota
 
 ### R4-007 · Relatório compartilhável (P1)
 - [x] R4071 Coluna `shares.summary` + `summary_generated_at`

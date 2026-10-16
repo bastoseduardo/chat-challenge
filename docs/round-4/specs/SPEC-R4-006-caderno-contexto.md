@@ -30,3 +30,13 @@ O que o usuário guardou volta sozinho quando é relevante, e a trilha mostra qu
 
 ## Riscos
 - Limiar muito baixo injeta ruído. **Mitigação:** começar alto (0,55), máximo 3 e passo visível; o usuário vê e desliga se incomodar.
+
+## Notas da implementação (2026-10-16)
+- **Desvio 1, onde as notas entram:** na última mensagem do usuário (bloco `<user_notes>` antes do texto), não no `system`. A ordem do prompt na Anthropic é ferramentas → system → mensagens; mudar o `system` a cada turno invalidaria o cache do histórico inteiro. Conferido: no 2º turno, `cacheReadTokens` = 3.893.
+- **Desvio 2, limiar:** cosseno puro (voyage-3-lite) não separa em textos curtos. Exemplos com a nota "Prefiro Postgres com RLS…": "que horas são em Lisboa agora?" = 0,42; "como proteger dados por usuário? Responda em 3 frases." = 0,35. Com 0,55 nada passava. Solução em duas etapas (`lib/notes/context.ts`): cosseno ≥ 0,2 pré-seleciona 8 candidatas; o **rerank da Voyage** (`rerank-2.5-lite`, mesma chave, ~250 ms) decide, com relevância ≥ **0,38**. Se o rerank falhar, só passa nota com cosseno ≥ 0,6.
+- Calibração (rerank-2.5-lite, 17 perguntas × 3 notas: RLS, Postgres 18, Transformer): relevantes entre 0,39 e 0,85 (ex.: "como proteger dados por usuário?" 0,44; "devo validar permissões no backend ou no banco?" 0,44; "Quantas cabeças de atenção…" 0,85). Irrelevantes até 0,35 (ex.: "que horas são em Lisboa" 0,31; "receita de bolo" 0,28; "notícias de IA" × Transformer 0,35). Ficou de fora, aceitável: "qual a melhor forma de fazer autorização em uma API?" 0,37.
+- A busca roda em paralelo com `buildContext` e o carregamento do MCP; o `message.sent` agora é gravado depois dela, com `notes_used`.
+- Stream: `createUIMessageStream` com `originalMessages` + `generateId` (mesmo id da R4-001); o `onEnd` externo grava a resposta com a parte `data-notes-used` (também no cancelamento: o SDK chama `onEnd` no `cancel`). Título, uso no metadata e indicador de contexto conferidos.
+- UI: `components/chat/notes-used.tsx`, passo "Consultou N notas do caderno" no estilo da trilha, abre a lista com link pro Caderno. Não aparece no relatório público (as notas são privadas). "Pensando…" continua visível enquanto só a parte de notas chegou.
+- Configurações: seção "Caderno" com "Usar o caderno como contexto" (migração 0006 aplicada pelo pooler: o host do `DIRECT_URL` só tem IPv6 e não resolveu daqui).
+- Validado: nota RLS → conversa nova "como proteger dados por usuário? Responda em 3 frases." → passo + resposta começa com "Das suas notas, você prefere…"; 2º turno "que horas são em Lisboa" sem passo; recarregar mantém; switch desligado não injeta; switch salvo pela UI persiste; axe sem violações (conversa e Configurações). Dados de teste apagados.

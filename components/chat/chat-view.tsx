@@ -313,6 +313,8 @@ export function ChatView({
   const activity = useMemo(() => {
     if (!isLoading) return null
     if (!last || last.role === "user") return "Pensando…"
+    // Só as notas do caderno chegaram (parte data-*): ainda pensando.
+    if (last.parts.every((p) => p.type.startsWith("data-") || p.type === "step-start")) return "Pensando…"
     const parts = last.parts as Parameters<typeof toolStepOf>[0][]
     for (let i = parts.length - 1; i >= 0; i--) {
       const step = toolStepOf(parts[i], String(i))
@@ -447,7 +449,7 @@ export function ChatView({
                   />
                 )
               })}
-              {isLoading && last?.role === "user" && (
+              {isLoading && activity === "Pensando…" && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" aria-hidden />
                   Pensando…

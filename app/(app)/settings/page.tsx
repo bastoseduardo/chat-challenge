@@ -32,6 +32,7 @@ export default async function SettingsPage() {
             initial={{
               enabledTools: settings?.enabledTools ?? ["web_search", "web_scrape", "get_current_time"],
               mcpConfig: JSON.stringify(settings?.mcpConfig ?? {}, null, 2),
+              useNotesContext: settings?.useNotesContext ?? true,
             }}
           />
         </div>
