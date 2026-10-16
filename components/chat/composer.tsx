@@ -1,10 +1,12 @@
 "use client"
 
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react"
-import { ArrowUp, Paperclip, Square } from "lucide-react"
+import { ArrowUp, Mic, Paperclip, Square } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { AttachmentTiles } from "./attachment-tiles"
+import { useDictation } from "@/hooks/use-dictation"
+import { cn } from "@/lib/utils"
 import type { PendingAttachment } from "./use-attachments"
 
 const MAX_HEIGHT = 8 * 24 + 16 // 8 linhas de 24px + padding
@@ -45,6 +47,30 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Ditado: o texto falado entra no fim do que já estava digitado.
+  const baseRef = useRef("")
+  const dictation = useDictation({
+    onText: (final, interim) => {
+      const spoken = [final, interim].filter(Boolean).join(" ")
+      onChange(baseRef.current + spoken)
+    },
+    onError: (kind) =>
+      toast.error(
+        kind === "permission"
+          ? "Permita o microfone nas configurações do navegador pra ditar."
+          : "O ditado parou. Tente de novo."
+      ),
+  })
+  function toggleDictation() {
+    if (!dictation.listening) baseRef.current = value && !/\s$/.test(value) ? `${value} ` : value
+    dictation.toggle()
+    textareaRef.current?.focus()
+  }
+  function submit() {
+    if (dictation.listening) dictation.stop()
+    onSubmit()
+  }
+
   useImperativeHandle(ref, () => ({
     focus: () => textareaRef.current?.focus(),
     pickFiles: () => fileInputRef.current?.click(),
@@ -63,7 +89,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        if (!isLoading) onSubmit()
+        if (!isLoading) submit()
       }}
       className="shrink-0 px-3 pb-3 pt-1 sm:px-4 sm:pb-4"
     >
@@ -94,7 +120,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
-              if (!isLoading) onSubmit()
+              if (!isLoading) submit()
             }
             if (e.key === "Escape" && isLoading) {
               e.preventDefault()
@@ -125,13 +151,34 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           >
             <Paperclip className="size-[18px]" />
           </Button>
-          <p className="flex-1 truncate text-xs text-muted-foreground">
-            <span className="hidden sm:inline">
-              {isLoading
-                ? "Esc interrompe a resposta"
-                : "Enter envia, Shift+Enter quebra a linha, Ctrl+V cola imagens"}
-            </span>
+          <p className="flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
+            {dictation.listening ? (
+              <span className="font-medium text-foreground">Ouvindo… toque no microfone pra parar</span>
+            ) : (
+              <span className="hidden sm:inline">
+                {isLoading
+                  ? "Esc interrompe a resposta"
+                  : "Enter envia, Shift+Enter quebra a linha, Ctrl+V cola imagens"}
+              </span>
+            )}
           </p>
+          {dictation.supported && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleDictation}
+              aria-pressed={dictation.listening}
+              aria-label={dictation.listening ? "Parar o ditado" : "Ditar"}
+              title={dictation.listening ? "Parar o ditado" : "Ditar (pt-BR)"}
+              className={cn(
+                "text-muted-foreground pointer-coarse:size-11",
+                dictation.listening && "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
+              )}
+            >
+              <Mic className={cn("size-[18px]", dictation.listening && "animate-pulse")} />
+            </Button>
+          )}
           {isLoading ? (
             <Button
               type="button"
