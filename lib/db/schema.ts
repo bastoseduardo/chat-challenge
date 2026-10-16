@@ -93,6 +93,8 @@ export const messages = pgTable(
     summarizesUntilMessageId: uuid("summarizes_until_message_id"),
     embedding: vector512("embedding"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** SPEC-R4-008: editar e reenviar apaga a mensagem editada e as seguintes. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
     index("messages_conv_idx").on(t.conversationId, t.createdAt),

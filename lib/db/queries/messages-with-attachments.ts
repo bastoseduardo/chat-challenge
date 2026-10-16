@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments, toolInvocations } from "@/lib/db/schema"
-import { asc, eq } from "drizzle-orm"
+import { and, asc, eq, isNull } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import type { UIMessage } from "ai"
 
@@ -35,7 +35,7 @@ export async function listMessagesWithAttachments(
   const rows = await db
     .select()
     .from(messages)
-    .where(eq(messages.conversationId, conversationId))
+    .where(and(eq(messages.conversationId, conversationId), isNull(messages.deletedAt)))
     .orderBy(asc(messages.createdAt))
 
   const result: UIMessage[] = []

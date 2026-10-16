@@ -1,5 +1,5 @@
 import { generateText } from "ai"
-import { eq, and, gt, sql, asc } from "drizzle-orm"
+import { eq, and, gt, isNull, sql, asc } from "drizzle-orm"
 import { after } from "next/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages } from "@/lib/db/schema"
@@ -64,7 +64,7 @@ export async function compactIfNeeded(opts: {
   const [lastSummary] = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true)))
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true), isNull(messages.deletedAt)))
     .orderBy(sql`${messages.createdAt} desc`)
     .limit(1)
 
@@ -72,7 +72,7 @@ export async function compactIfNeeded(opts: {
   const windowRows = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since)))
+    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since), isNull(messages.deletedAt)))
     .orderBy(asc(messages.createdAt))
 
   const minToSummarize = force ? 2 : 4

@@ -136,10 +136,10 @@ R4-011 Login incremental do Drive (P3, qualquer momento)
 - [x] R4077 Validação: deslogado, desktop/mobile, PDF impresso
 
 ### R4-008 · Editar e reenviar (P2)
-- [ ] R4081 Coluna `messages.deleted_at` + filtros em `buildContext`, listagem, export e função de share
-- [ ] R4082 `POST /api/conversations/[id]/truncate` (apaga a partir de uma mensagem, bloqueia antes do último resumo)
-- [ ] R4083 UI: lápis na mensagem do usuário, edição inline, reenviar
-- [ ] R4084 Validação + teste unitário da regra de bloqueio
+- [x] R4081 Coluna `messages.deleted_at` + filtros em `buildContext`, listagem, export e função de share
+- [x] R4082 `POST /api/conversations/[id]/truncate` (apaga a partir de uma mensagem, bloqueia antes do último resumo)
+- [x] R4083 UI: lápis na mensagem do usuário, edição inline, reenviar
+- [x] R4084 Validação + teste unitário da regra de bloqueio
 
 ### R4-009 · Modelo na resposta + ditado (P2)
 - [ ] R4091 Metadata do stream inclui `model`; mensagens salvas já têm `messages.model`
