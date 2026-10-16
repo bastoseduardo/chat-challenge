@@ -57,6 +57,9 @@ export async function GET(
   lines.push("---")
   lines.push("")
 
+  // Notas de rodapé com prefixo único por resposta (r1-1, r2-1...): só a
+  // numeração [n] se repete entre respostas.
+  let cited = 0
   for (const m of msgs) {
     if (m.isSummary) {
       lines.push(`### 📜 Compaction summary`)
@@ -114,11 +117,10 @@ export async function GET(
     const asMessage = { id: m.id, role: m.role, parts: Array.isArray(m.content) ? m.content : [] } as unknown as UIMessage
     const sources = m.role === "assistant" ? extractSources(asMessage) : []
     if (sources.length) {
-      lines.push(textWithCitations(asMessage, (ix) => ix.map((n) => `[^${m.id.slice(0, 4)}-${n}]`).join("")))
+      const tag = `r${++cited}`
+      lines.push(textWithCitations(asMessage, (ix) => ix.map((n) => `[^${tag}-${n}]`).join("")))
       lines.push("")
-      lines.push(
-        footnotesMarkdown(sources).replace(/^\[\^(\d+)\]/gm, (_, n) => `[^${m.id.slice(0, 4)}-${n}]`)
-      )
+      lines.push(footnotesMarkdown(sources).replace(/^\[\^(\d+)\]/gm, (_, n) => `[^${tag}-${n}]`))
     } else {
       lines.push(m.role === "assistant" ? textWithCitations(asMessage) || extractText(m.content) : extractText(m.content))
     }

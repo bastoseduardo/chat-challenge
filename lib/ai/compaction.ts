@@ -1,4 +1,5 @@
-import { generateText } from "ai"
+import { generateText, type UIMessage } from "ai"
+import { textWithCitations } from "@/lib/sources/extract"
 import { eq, and, gt, isNull, sql, asc } from "drizzle-orm"
 import { after } from "next/server"
 import { db } from "@/lib/db/client"
@@ -154,7 +155,9 @@ function buildSummaryPrompt(
 ): string {
   const transcript = rows
     .map((r) => {
-      const text = extractText(r.content)
+      const text = Array.isArray(r.content)
+        ? textWithCitations({ id: "", role: r.role, parts: r.content } as unknown as UIMessage)
+        : extractText(r.content)
       return `${r.role.toUpperCase()}: ${text}`
     })
     .join("\n\n")
