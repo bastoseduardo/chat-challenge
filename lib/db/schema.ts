@@ -51,6 +51,8 @@ export const userSettings = pgTable("user_settings", {
     .default(["web_search", "web_scrape", "get_current_time"]),
   mcpConfig: jsonb("mcp_config").notNull().default({}),
   defaultModel: text("default_model").notNull().default("claude-sonnet-4-6"),
+  /** SPEC-R4-006: notas parecidas com a pergunta entram como contexto. */
+  useNotesContext: boolean("use_notes_context").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 

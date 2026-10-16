@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { after } from "next/server"
-import { streamText, type UIMessage } from "ai"
+import { createUIMessageStream, createUIMessageStreamResponse, streamText, type UIMessage } from "ai"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages, attachments as attachmentsTable, userSettings } from "@/lib/db/schema"
@@ -19,6 +19,7 @@ import { loadMcpTools, closeMcpClients } from "@/lib/ai/mcp"
 import { assertRateLimit, RateLimitError, getClientIp } from "@/lib/rate-limit"
 import { embedAndStoreMessage } from "@/lib/db/queries/search"
 import { compactPartsForStorage } from "@/lib/ai/persist-parts"
+import { findContextNotes, notesUsedData, withNotesContext } from "@/lib/notes/context"
 
 export const maxDuration = 60
 
@@ -120,6 +121,20 @@ export async function POST(req: NextRequest) {
   }
 
   const lastUser = uiMessages[uiMessages.length - 1]
+  const userText =
+    lastUser?.role === "user"
+      ? (lastUser.parts ?? [])
+          .filter((p): p is { type: "text"; text: string } => (p as { type?: string }).type === "text")
+          .map((p) => p.text)
+          .join("\n")
+          .trim()
+      : ""
+  // Caderno como contexto (SPEC-R4-006): roda junto com o resto da preparação.
+  const notesPromise =
+    userText && settings?.useNotesContext !== false
+      ? findContextNotes(user.id, userText)
+      : Promise.resolve([])
+
   let userMessageId: string | null = null
   let isDuplicate = false
   if (lastUser?.role === "user") {
@@ -186,6 +201,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Embedding em background (não bloqueia stream).
+    if (userMessageId && !isDuplicate && userText) {
+      after(() => embedAndStoreMessage(userMessageId!, userText))
+    }
+  }
+
+  // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
+  // (Attachments entram via buildContext como file parts com URL, não bytes.)
+  const [historyMessages, mcp, contextNotes] = await Promise.all([
+    buildContext(conversationId),
+    loadMcpTools({ userId: user.id, mcpConfig: settings?.mcpConfig }),
+    notesPromise,
+  ])
+
+  if (lastUser?.role === "user") {
     await logAudit({
       userId: user.id,
       eventType: "message.sent",
@@ -194,34 +224,12 @@ export async function POST(req: NextRequest) {
       metadata: {
         parts: lastUser.parts?.length ?? 0,
         attachments: incomingAttachments.length,
+        notes_used: contextNotes.length,
       },
     })
-
-    // Embedding em background (não bloqueia stream).
-    if (userMessageId && !isDuplicate) {
-      const userText = (lastUser.parts ?? [])
-        .filter(
-          (p): p is { type: "text"; text: string } =>
-            (p as { type?: string }).type === "text"
-        )
-        .map((p) => p.text)
-        .join("\n")
-        .trim()
-      if (userText) {
-        after(() => embedAndStoreMessage(userMessageId!, userText))
-      }
-    }
   }
 
-  // Build context from DB — já inclui summary de compactação e anexos como signed URLs.
-  // (Attachments entram via buildContext como file parts com URL, não bytes.)
-  const historyMessages = await buildContext(conversationId)
-
   const builtinTools = getBuiltinTools({ enabled: enabledTools, driveToken })
-  const mcp = await loadMcpTools({
-    userId: user.id,
-    mcpConfig: settings?.mcpConfig,
-  })
   const allTools = { ...builtinTools, ...mcp.tools }
 
   // Prompt mínimo pra garantir que, após tool calls, o modelo sempre escreva
@@ -243,7 +251,7 @@ When you use web search, web fetch or attached documents, ground factual claims 
   const result = streamText({
     model: getModel(model),
     system: combinedSystem,
-    messages: historyMessages,
+    messages: withNotesContext(historyMessages, contextNotes),
     tools: allTools,
     // 10 steps dá folga pra 4-5 tool calls + resposta final. 5 era agressivo
     // demais e deixava conversas presas em "research mode" sem texto.
@@ -321,9 +329,31 @@ When you use web search, web fetch or attached documents, ground factual claims 
   // O uso agregado vai no metadata da mensagem (evento `finish`) — o cliente
   // atualiza o indicador de contexto sem refresh nem polling. É o mesmo valor
   // gravado em conversations.total_*_tokens no onFinish acima.
-  return result.toUIMessageStreamResponse({
-    sendSources: true,
-    generateMessageId: () => assistantMessageId,
+  // As notas usadas vão antes da resposta como parte `data-notes-used`; o onEnd
+  // do stream externo vê todas as partes (inclusive essa) e grava a resposta.
+  const stream = createUIMessageStream({
+    originalMessages: uiMessages,
+    generateId: () => assistantMessageId,
+    execute: ({ writer }) => {
+      if (contextNotes.length > 0) {
+        writer.write({ type: "data-notes-used", data: notesUsedData(contextNotes) })
+      }
+      writer.merge(
+        result.toUIMessageStream({
+          sendSources: true,
+          generateMessageId: () => assistantMessageId,
+          messageMetadata: ({ part }) => {
+            if (part.type !== "finish") return undefined
+            return {
+              usage: {
+                inputTokens: part.totalUsage.inputTokens ?? 0,
+                outputTokens: part.totalUsage.outputTokens ?? 0,
+              },
+            }
+          },
+        })
+      )
+    },
     onEnd: async ({ responseMessage, isAborted }) => {
       if (responseMessage.role !== "assistant" || responseMessage.parts.length === 0) return
       const content = compactPartsForStorage(responseMessage.parts) as unknown as object
@@ -336,14 +366,7 @@ When you use web search, web fetch or attached documents, ground factual claims 
         console.error("[chat] falha ao salvar parts da resposta", { isAborted, err })
       }
     },
-    messageMetadata: ({ part }) => {
-      if (part.type !== "finish") return undefined
-      return {
-        usage: {
-          inputTokens: part.totalUsage.inputTokens ?? 0,
-          outputTokens: part.totalUsage.outputTokens ?? 0,
-        },
-      }
-    },
   })
+
+  return createUIMessageStreamResponse({ stream })
 }

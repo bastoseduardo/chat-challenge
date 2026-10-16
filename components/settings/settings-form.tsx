@@ -20,6 +20,7 @@ interface Props {
   initial: {
     enabledTools: string[]
     mcpConfig: string
+    useNotesContext: boolean
   }
 }
 
@@ -51,13 +52,19 @@ function validateMcp(text: string): { value: Record<string, unknown> } | { error
 export function SettingsForm({ initial }: Props) {
   const [tools, setTools] = useState<string[]>(initial.enabledTools)
   const [mcpConfig, setMcpConfig] = useState(initial.mcpConfig)
-  const [saved, setSaved] = useState({ tools: initial.enabledTools, mcp: initial.mcpConfig })
+  const [notesContext, setNotesContext] = useState(initial.useNotesContext)
+  const [saved, setSaved] = useState({
+    tools: initial.enabledTools,
+    mcp: initial.mcpConfig,
+    notesContext: initial.useNotesContext,
+  })
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle")
 
   const mcp = useMemo(() => validateMcp(mcpConfig), [mcpConfig])
   const mcpError = "error" in mcp ? mcp.error : null
   const dirty =
     mcpConfig !== saved.mcp ||
+    notesContext !== saved.notesContext ||
     tools.length !== saved.tools.length ||
     tools.some((t) => !saved.tools.includes(t))
 
@@ -72,10 +79,10 @@ export function SettingsForm({ initial }: Props) {
     const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enabledTools: tools, mcpConfig: mcp.value }),
+      body: JSON.stringify({ enabledTools: tools, mcpConfig: mcp.value, useNotesContext: notesContext }),
     }).catch(() => null)
     if (succeeded(res)) {
-      setSaved({ tools, mcp: mcpConfig })
+      setSaved({ tools, mcp: mcpConfig, notesContext })
       setStatus("saved")
       setTimeout(() => setStatus((s) => (s === "saved" ? "idle" : s)), 2000)
     } else {
@@ -135,6 +142,34 @@ export function SettingsForm({ initial }: Props) {
           Se uma ferramenta do Drive estiver ligada e mesmo assim falhar, saia e entre de novo
           com o Google pra renovar a permissão.
         </p>
+      </section>
+
+      <section aria-labelledby="notes-heading" className="space-y-3">
+        <div>
+          <h2 id="notes-heading" className="font-semibold">
+            Caderno
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            O que você guardou no caderno pode voltar nas respostas.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+          <label htmlFor="notes-context" className="min-w-0 cursor-pointer">
+            <span className="block font-medium">Usar o caderno como contexto</span>
+            <span className="block text-sm text-muted-foreground">
+              A cada pergunta, até 3 notas parecidas vão junto pro assistente. A trilha da
+              resposta mostra quais foram.
+            </span>
+          </label>
+          <Switch
+            id="notes-context"
+            checked={notesContext}
+            onCheckedChange={(v) => {
+              setStatus("idle")
+              setNotesContext(v)
+            }}
+          />
+        </div>
       </section>
 
       <section aria-labelledby="mcp-heading" className="space-y-3">

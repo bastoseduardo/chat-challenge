@@ -7,6 +7,8 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Markdown } from "./markdown"
 import { ResearchTrail, type ToolStep } from "./research-trail"
+import { NotesUsed } from "./notes-used"
+import type { NotesUsedData } from "@/lib/notes/context"
 import { ImageLightbox } from "./image-lightbox"
 import { CitationProvider, SourcesList, citeMarker, trustLine } from "./citations"
 import { SelectionToSave } from "./selection-to-save"
@@ -150,6 +152,13 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate, conversa
       flushSteps(i)
       flushText(i)
       blocks.push(<FilePart key={i} part={p} />)
+      return
+    }
+    // Notas do caderno usadas como contexto: só pro dono (fora do relatório público).
+    if (p.type === "data-notes-used" && conversationId) {
+      flushSteps(i)
+      flushText(i)
+      blocks.push(<NotesUsed key={`notes-${i}`} data={(p as unknown as { data: NotesUsedData }).data} />)
     }
     // source-url/source-document/step-start/custom: sem bloco próprio
   })

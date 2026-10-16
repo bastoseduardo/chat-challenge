@@ -75,3 +75,34 @@ export async function embedQuery(text: string): Promise<number[]> {
 export function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.map((n) => n.toFixed(6)).join(",")}]`
 }
+
+const RERANK_URL = "https://api.voyageai.com/v1/rerank"
+const RERANK_MODEL = "rerank-2.5-lite"
+
+/**
+ * Relevância (0–1) de cada documento pra query, na ordem dos documentos.
+ * Mais preciso que o cosseno dos embeddings pra textos curtos (SPEC-R4-006).
+ * Levanta erro — o caller lida com fallback.
+ */
+export async function rerank(query: string, documents: string[]): Promise<number[]> {
+  const key = process.env.VOYAGE_API_KEY
+  if (!key) throw new EmbeddingError("VOYAGE_API_KEY not configured")
+  if (documents.length === 0) return []
+  const res = await fetch(RERANK_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: RERANK_MODEL,
+      query: query.trim().slice(0, 2000),
+      documents: documents.map((d) => d.slice(0, 4000)),
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new EmbeddingError(`Voyage rerank ${res.status}: ${text}`, res.status)
+  }
+  const json = (await res.json()) as { data: Array<{ index: number; relevance_score: number }> }
+  const scores = new Array<number>(documents.length).fill(0)
+  for (const d of json.data) scores[d.index] = d.relevance_score
+  return scores
+}
