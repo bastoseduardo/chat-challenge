@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,65 +14,60 @@ import {
 import { Archive, Zap, Loader2, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import {
+  COMPACTION_THRESHOLD,
+  CONTEXT_WINDOW,
+  statsKey,
+  succeeded,
+  type ConversationStats,
+} from "@/lib/conversations/store"
 
 interface Props {
   conversationId: string
   initialTotalTokens: number
   initialCompactionCount: number
-  // janela de contexto do modelo
-  ctxWindow?: number
-  // threshold de disparo da compactação automática
-  threshold?: number
 }
 
-interface CompactionEvent {
-  created_at: string
-  metadata: {
-    messages_summarized?: number
-    tokens_before?: number
-    forced?: boolean
+async function fetchStats(conversationId: string): Promise<ConversationStats> {
+  const res = await fetch(`/api/conversations/${conversationId}/compactions`)
+  if (!succeeded(res)) throw new Error("Falha ao carregar o contexto")
+  const data = await res.json()
+  return {
+    totalTokens: data.totalInputTokens + data.totalOutputTokens,
+    compactionCount: data.compactionCount ?? 0,
+    events: data.events ?? [],
   }
 }
 
+// O uso é atualizado pelo ChatView a cada resposta (metadata do stream) e
+// reconciliado com o banco só quando o diálogo abre ou depois de uma
+// compactação — sem polling.
 export function ContextIndicator({
   conversationId,
   initialTotalTokens,
   initialCompactionCount,
-  ctxWindow = 200_000,
-  threshold = 0.8,
 }: Props) {
-  const router = useRouter()
-  const [totalTokens, setTotalTokens] = useState(initialTotalTokens)
-  const [compactionCount, setCompactionCount] = useState(initialCompactionCount)
-  const [events, setEvents] = useState<CompactionEvent[]>([])
+  const ctxWindow = CONTEXT_WINDOW
+  const threshold = COMPACTION_THRESHOLD
   const [open, setOpen] = useState(false)
   const [forcing, setForcing] = useState(false)
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/conversations/${conversationId}/compactions`)
-      if (!res.ok) return
-      const data = await res.json()
-      const newCount = data.compactionCount ?? 0
-      if (newCount > compactionCount) {
-        toast.success("Histórico comprimido pra manter o contexto")
-      }
-      setTotalTokens(data.totalInputTokens + data.totalOutputTokens)
-      setCompactionCount(newCount)
-      setEvents(data.events ?? [])
-    } catch {}
-  }, [conversationId, compactionCount])
+  const { data, refetch } = useQuery({
+    queryKey: statsKey(conversationId),
+    queryFn: () => fetchStats(conversationId),
+    initialData: {
+      totalTokens: initialTotalTokens,
+      compactionCount: initialCompactionCount,
+      events: [],
+    },
+    staleTime: Infinity,
+  })
+  const { totalTokens, compactionCount, events } = data
 
-  useEffect(() => {
-    if (open) void fetchStats()
-  }, [open, fetchStats])
-
-  // Polling leve a cada 10s pra atualizar a barra em background (ex: compactação pós-stream)
-  useEffect(() => {
-    const t = setInterval(fetchStats, 10_000)
-    return () => clearInterval(t)
-  }, [fetchStats])
+  function openDialog() {
+    setOpen(true)
+    void refetch()
+  }
 
   async function forceCompact() {
     setForcing(true)
@@ -79,16 +75,15 @@ export function ContextIndicator({
       const res = await fetch(`/api/conversations/${conversationId}/compact`, {
         method: "POST",
       })
-      const data = await res.json()
-      if (data.compacted) {
-        toast.success("Histórico comprimido manualmente")
-        await fetchStats()
-        router.refresh()
+      const result = await res.json()
+      if (result.compacted) {
+        toast.success("Histórico comprimido")
+        await refetch()
       } else {
-        toast.info(reasonLabel(data.reason))
+        toast.info(reasonLabel(result.reason))
       }
     } catch {
-      toast.error("Erro ao comprimir")
+      toast.error("Não foi possível comprimir. Tente de novo.")
     }
     setForcing(false)
   }
@@ -101,18 +96,19 @@ export function ContextIndicator({
   const barColor = over
     ? "bg-destructive"
     : near
-    ? "bg-amber-500"
+    ? "bg-warning"
     : "bg-primary"
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openDialog}
         className="flex items-center gap-2 text-xs hover:bg-accent px-2 py-1 rounded transition-colors"
         title="Ver detalhes do contexto"
+        aria-label={`Contexto usado: ${pct}%`}
       >
-        <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className="hidden sm:block w-24 h-1.5 bg-muted rounded-full overflow-hidden">
           <div
             className={cn("h-full transition-all", barColor)}
             style={{ width: `${pct}%` }}

@@ -5,6 +5,7 @@ export type AuditEventType =
   | "user.logout"
   | "conversation.created"
   | "conversation.deleted"
+  | "conversation.restored"
   | "conversation.shared"
   | "conversation.unshared"
   | "message.sent"

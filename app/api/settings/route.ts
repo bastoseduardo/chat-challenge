@@ -3,7 +3,6 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { userSettings } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
 
 const patchSchema = z.object({
   enabledTools: z.array(z.string()).optional(),

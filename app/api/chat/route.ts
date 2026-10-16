@@ -313,5 +313,18 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return result.toUIMessageStreamResponse()
+  // O uso agregado vai no metadata da mensagem (evento `finish`) — o cliente
+  // atualiza o indicador de contexto sem refresh nem polling. É o mesmo valor
+  // gravado em conversations.total_*_tokens no onFinish acima.
+  return result.toUIMessageStreamResponse({
+    messageMetadata: ({ part }) => {
+      if (part.type !== "finish") return undefined
+      return {
+        usage: {
+          inputTokens: part.totalUsage.inputTokens ?? 0,
+          outputTokens: part.totalUsage.outputTokens ?? 0,
+        },
+      }
+    },
+  })
 }
