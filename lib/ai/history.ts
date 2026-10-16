@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments as attachmentsTable } from "@/lib/db/schema"
-import { and, eq, gt, isNotNull, desc, asc } from "drizzle-orm"
+import { and, eq, gt, isNotNull, isNull, desc, asc } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import type { ModelMessage } from "ai"
 
@@ -14,7 +14,7 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
   const [lastSummary] = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true)))
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, true), isNull(messages.deletedAt)))
     .orderBy(desc(messages.createdAt))
     .limit(1)
 
@@ -23,7 +23,7 @@ export async function buildContext(conversationId: string): Promise<ModelMessage
   const rows = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since)))
+    .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, since), isNull(messages.deletedAt)))
     .orderBy(asc(messages.createdAt))
 
   const out: ModelMessage[] = []

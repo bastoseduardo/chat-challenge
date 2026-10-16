@@ -2,7 +2,7 @@
 
 import type { UIMessage } from "ai"
 import { memo, useMemo, useState, type ReactNode } from "react"
-import { Copy, RefreshCw, Check, FileText, NotebookPen } from "lucide-react"
+import { Copy, RefreshCw, Check, FileText, NotebookPen, Pencil } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Markdown } from "./markdown"
@@ -12,6 +12,7 @@ import type { NotesUsedData } from "@/lib/notes/context"
 import { ImageLightbox } from "./image-lightbox"
 import { CitationProvider, SourcesList, citeMarker, trustLine } from "./citations"
 import { SelectionToSave } from "./selection-to-save"
+import { EditUserMessage } from "./edit-user-message"
 import { useNoteActions } from "@/lib/notes/store"
 import {
   appendBeforeTrailingSpace,
@@ -29,6 +30,10 @@ interface MessageBubbleProps {
   onRegenerate?: () => void
   /** Conversa dona da mensagem; habilita guardar no caderno (ausente no share). */
   conversationId?: string
+  /** Editar e reenviar uma pergunta (SPEC-R4-008); ausente no share. */
+  onEdit?: (message: UIMessage, text: string) => Promise<boolean>
+  /** Enquanto uma resposta é gerada, não dá pra editar. */
+  editDisabled?: boolean
 }
 
 type AnyPart = UIMessage["parts"][number] & {
@@ -74,11 +79,38 @@ function FilePart({ part }: { part: AnyPart & { url?: unknown; mediaType?: strin
   )
 }
 
-function UserMessage({ message }: { message: UIMessage }) {
+function UserMessage({
+  message,
+  onEdit,
+  editDisabled,
+}: Pick<MessageBubbleProps, "message" | "onEdit" | "editDisabled">) {
+  const [editing, setEditing] = useState(false)
   const parts = message.parts as AnyPart[]
   const files = parts.filter((p) => p.type === "file")
+  const text = parts
+    .filter((p) => p.type === "text")
+    .map((p) => (p as { text: string }).text)
+    .join("\n")
+
+  if (editing && onEdit) {
+    return (
+      <div id={`msg-${message.id}`} className="flex scroll-mt-6 justify-end">
+        <EditUserMessage
+          initialText={text}
+          hasFiles={files.length > 0}
+          onCancel={() => setEditing(false)}
+          onSubmit={async (next) => {
+            const ok = await onEdit(message, next)
+            if (ok) setEditing(false)
+            return ok
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
-    <div id={`msg-${message.id}`} className="flex scroll-mt-6 justify-end">
+    <div id={`msg-${message.id}`} className="group/user flex scroll-mt-6 flex-col items-end gap-1">
       <div className="max-w-[85%] space-y-2 rounded-lg border bg-card px-4 py-2.5 sm:max-w-[75%]">
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -91,12 +123,23 @@ function UserMessage({ message }: { message: UIMessage }) {
           p.type === "text" ? <Markdown key={i} text={(p as { text: string }).text} /> : null
         )}
       </div>
+      {onEdit && text.trim() && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          disabled={editDisabled}
+          aria-label="Editar pergunta"
+          title="Editar pergunta"
+          className="grid size-8 place-items-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/user:opacity-100 disabled:pointer-events-none disabled:opacity-0 pointer-coarse:size-10 pointer-coarse:opacity-100"
+        >
+          <Pencil className="size-3.5" aria-hidden />
+        </button>
+      )}
     </div>
   )
 }
 
 function AssistantMessage({ message, isLast, isStreaming, onRegenerate, conversationId }: MessageBubbleProps) {
-  const notes = useNoteActions()
   const [copied, setCopied] = useState(false)
   const parts = message.parts as AnyPart[]
 
@@ -182,13 +225,6 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate, conversa
 
   const trust = trustLine(sources, pageAges, usedWeb)
 
-  function saveAnswer() {
-    if (!conversationId) return
-    const text = textWithCitations(message).slice(0, 20_000)
-    if (!text) return
-    void notes.create({ content: text, conversationId, messageId: message.id })
-  }
-
   const body =
     conversationId && !isStreaming ? (
       <SelectionToSave conversationId={conversationId} messageId={message.id}>
@@ -222,11 +258,7 @@ function AssistantMessage({ message, isLast, isStreaming, onRegenerate, conversa
               <RefreshCw className="size-4" />
             </ActionButton>
           )}
-          {conversationId && (
-            <ActionButton label="Guardar resposta no caderno" onClick={saveAnswer}>
-              <NotebookPen className="size-4" />
-            </ActionButton>
-          )}
+          {conversationId && <SaveAnswerButton message={message} conversationId={conversationId} />}
           {trust && <span className="ml-1.5 text-xs text-muted-foreground">{trust}</span>}
         </div>
       )}
@@ -269,6 +301,22 @@ function citationData(message: UIMessage) {
   return { sources, sourcesByStep, pageAges, usedWeb }
 }
 
+// Componente à parte: useNoteActions precisa do React Query, que a página
+// pública do relatório (/share) não tem.
+function SaveAnswerButton({ message, conversationId }: { message: UIMessage; conversationId: string }) {
+  const notes = useNoteActions()
+  function save() {
+    const text = textWithCitations(message).slice(0, 20_000)
+    if (!text) return
+    void notes.create({ content: text, conversationId, messageId: message.id })
+  }
+  return (
+    <ActionButton label="Guardar resposta no caderno" onClick={save}>
+      <NotebookPen className="size-4" />
+    </ActionButton>
+  )
+}
+
 function ActionButton({
   label,
   onClick,
@@ -295,7 +343,7 @@ function ActionButton({
 // então as anteriores não re-renderizam nem reparseiam o markdown a cada token.
 export const MessageBubble = memo(function MessageBubble(props: MessageBubbleProps) {
   return props.message.role === "user" ? (
-    <UserMessage message={props.message} />
+    <UserMessage message={props.message} onEdit={props.onEdit} editDisabled={props.editDisabled} />
   ) : (
     <AssistantMessage {...props} />
   )

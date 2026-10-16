@@ -156,7 +156,7 @@ export function ChatView({
     return () => cancelAnimationFrame(frame)
   }, [stopScroll])
 
-  const { messages, sendMessage, regenerate, stop, status, error } = useChat({
+  const { messages, sendMessage, regenerate, setMessages, stop, status, error } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -234,6 +234,40 @@ export function ChatView({
   const handleRegenerate = useCallback(() => {
     void regenerate()
   }, [regenerate])
+
+  // Editar e reenviar (SPEC-R4-008): apaga no servidor a pergunta e o que veio
+  // depois, corta a lista local e envia o texto novo. Anexos não são reenviados.
+  const messagesRef = useRef(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+  const handleEdit = useCallback(
+    async (message: UIMessage, text: string) => {
+      const res = await fetch(`/api/conversations/${conversationId}/truncate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fromMessageId: message.id }),
+      }).catch(() => null)
+      if (res?.status === 409) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string }
+        toast.error(data.message ?? "Essa parte da conversa não pode ser editada.")
+        return false
+      }
+      if (!succeeded(res)) {
+        toast.error("Não foi possível editar. Tente de novo.")
+        return false
+      }
+      const current = messagesRef.current
+      const idx = current.findIndex((m) => m.id === message.id)
+      setMessages(idx >= 0 ? current.slice(0, idx) : current)
+      void scrollToBottom()
+      void sendMessage({ text }, { body: { attachments: [] } }).catch((err) =>
+        toast.error(err instanceof Error ? err.message : "Erro ao enviar")
+      )
+      return true
+    },
+    [conversationId, setMessages, sendMessage, scrollToBottom]
+  )
 
   // Primeiro envio numa conversa nova: cria a linha, troca a URL sem navegar
   // e coloca a conversa no topo da sidebar.
@@ -446,6 +480,8 @@ export function ChatView({
                     isStreaming={isLast && isLoading && m.role === "assistant"}
                     onRegenerate={handleRegenerate}
                     conversationId={started ? conversationId : undefined}
+                    onEdit={started ? handleEdit : undefined}
+                    editDisabled={isLoading}
                   />
                 )
               })}

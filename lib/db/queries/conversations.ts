@@ -99,6 +99,6 @@ export async function listMessages(conversationId: string) {
   return db
     .select()
     .from(messages)
-    .where(eq(messages.conversationId, conversationId))
+    .where(and(eq(messages.conversationId, conversationId), isNull(messages.deletedAt)))
     .orderBy(asc(messages.createdAt))
 }

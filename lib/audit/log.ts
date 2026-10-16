@@ -10,6 +10,7 @@ export type AuditEventType =
   | "conversation.unshared"
   | "message.sent"
   | "message.received"
+  | "message.edited"
   | "tool.invoked"
   | "attachment.uploaded"
   | "compaction.executed"

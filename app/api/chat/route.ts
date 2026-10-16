@@ -4,7 +4,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, streamText, type 
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages, attachments as attachmentsTable, userSettings } from "@/lib/db/schema"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, gt, isNull, sql } from "drizzle-orm"
 import { getModel } from "@/lib/ai/client"
 import { DEFAULT_MODEL } from "@/lib/ai/pricing"
 import { assertWithinCaps, QuotaError } from "@/lib/usage/caps"
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     } else if (clientMessageId) {
       isDuplicate = true
       const [existing] = await db
-        .select({ id: messages.id })
+        .select({ id: messages.id, createdAt: messages.createdAt })
         .from(messages)
         .where(
           and(
@@ -177,6 +177,21 @@ export async function POST(req: NextRequest) {
         )
         .limit(1)
       userMessageId = existing?.id ?? null
+      // "Gerar de novo" reenvia a mesma pergunta: a resposta anterior sai do
+      // histórico (soft delete), senão as duas voltariam ao recarregar.
+      if (existing) {
+        await db
+          .update(messages)
+          .set({ deletedAt: new Date() })
+          .where(
+            and(
+              eq(messages.conversationId, conversationId),
+              gt(messages.createdAt, existing.createdAt),
+              eq(messages.isSummary, false),
+              isNull(messages.deletedAt)
+            )
+          )
+      }
     }
 
     if (userMessageId && !isDuplicate && incomingAttachments.length > 0) {

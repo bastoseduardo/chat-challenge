@@ -1,5 +1,5 @@
 import { generateText, type UIMessage } from "ai"
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, isNull } from "drizzle-orm"
 import { db } from "@/lib/db/client"
 import { messages } from "@/lib/db/schema"
 import { getModel } from "@/lib/ai/client"
@@ -14,7 +14,7 @@ async function transcript(conversationId: string): Promise<string> {
   const rows = await db
     .select({ id: messages.id, role: messages.role, content: messages.content })
     .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, false)))
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.isSummary, false), isNull(messages.deletedAt)))
     .orderBy(asc(messages.createdAt))
 
   const lines = rows

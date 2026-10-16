@@ -30,3 +30,11 @@ Corrigir uma pergunta sem começar uma conversa nova: editar a mensagem do usuá
 - [ ] Mensagens apagadas não aparecem no export, no share, na busca nem no contexto do modelo.
 - [ ] Tentar editar antes de um resumo de compactação mostra a mensagem de bloqueio.
 - [ ] Teste unitário da regra de bloqueio.
+
+## Notas da implementação (2026-10-16)
+- Migração `0007_messages_deleted_at.sql`; `drizzle/sql/007_share_function_v3.sql` (share sem apagadas) e `008_semantic_search_v2.sql` (busca sem apagadas), aplicadas. Filtro `deleted_at is null` em `buildContext`, compactação, resumo do relatório, `listMessages` (export) e `listMessagesWithAttachments`.
+- `POST /api/conversations/[id]/truncate` aceita o id do banco ou o `client_message_id` (antes de recarregar, o cliente só conhece o id que ele gerou). Regra em `lib/conversations/truncate-rule.ts` (bloqueia se houver resumo criado depois da mensagem; sem isso o "apagar as seguintes" levaria o próprio resumo junto). Audit `message.edited` (também na lista do `/admin/audit`, junto com `note.*`, que faltava).
+- Achado e corrigido: "Gerar de novo" reenviava a mesma pergunta (duplicada pelo `clientMessageId`) e a resposta anterior continuava no banco, então as duas voltavam ao recarregar. Agora a rota do chat apaga (soft) o que veio depois da pergunta repetida.
+- Achado e corrigido (regressão da R4-005, só na `ux/round-4`): `/share/<token>` dava 500, porque o `AssistantMessage` chamava `useNoteActions` (React Query) e a página pública não tem o provider. "Guardar resposta" virou um componente à parte, só renderizado com `conversationId`.
+- UI: lápis abaixo da pergunta (hover/foco; sempre visível e com 40 px no toque), edição inline com Enter/Shift+Enter/Esc; desabilitado enquanto gera.
+- Validado: 3 trocas → editar a 2ª → some o resto, chega a resposta nova, recarregar confirma; o modelo lista só "2+2, 5+5"; export, relatório (200) e busca sem as apagadas; "Gerar de novo" + recarregar mantém 1 resposta; bloqueio com resumo mostra o aviso e mantém o editor; axe sem violações no modo edição. Dados de teste apagados.
