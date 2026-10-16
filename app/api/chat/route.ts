@@ -4,7 +4,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, streamText, type 
 import { createClient } from "@/lib/supabase/server"
 import { db } from "@/lib/db/client"
 import { conversations, messages, attachments as attachmentsTable, userSettings } from "@/lib/db/schema"
-import { and, eq, gt, isNull, or, sql } from "drizzle-orm"
+import { and, eq, isNull, or, sql } from "drizzle-orm"
 import { getModel } from "@/lib/ai/client"
 import { DEFAULT_MODEL } from "@/lib/ai/pricing"
 import { assertWithinCaps, QuotaError } from "@/lib/usage/caps"
@@ -198,7 +198,9 @@ export async function POST(req: NextRequest) {
         .where(
           and(
             eq(messages.conversationId, conversationId),
-            gt(messages.createdAt, existing.createdAt),
+            // Comparação no SQL (microssegundos): com o Date do JS (ms), a
+            // própria pergunta passava no ">" e era apagada junto.
+            sql`${messages.createdAt} > (select m.created_at from messages m where m.id = ${existing.id}::uuid)`,
             eq(messages.isSummary, false),
             isNull(messages.deletedAt)
           )

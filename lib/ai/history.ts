@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client"
 import { messages, attachments as attachmentsTable } from "@/lib/db/schema"
-import { and, eq, gt, isNotNull, isNull, asc } from "drizzle-orm"
+import { and, eq, isNotNull, isNull, asc } from "drizzle-orm"
 import { createSignedDownloadUrl } from "@/lib/storage/attachments"
 import { loadWindowStart } from "@/lib/ai/context-window"
 import type { ModelMessage, UIMessage } from "ai"
@@ -20,7 +20,7 @@ export interface ConversationContext {
  * - Expande anexos (image/pdf) como content parts com bytes do Storage
  */
 export async function buildContext(conversationId: string): Promise<ConversationContext> {
-  const { lastSummary, since } = await loadWindowStart(conversationId)
+  const { lastSummary, afterStart } = await loadWindowStart(conversationId)
 
   const rows = await db
     .select()
@@ -28,7 +28,7 @@ export async function buildContext(conversationId: string): Promise<Conversation
     .where(
       and(
         eq(messages.conversationId, conversationId),
-        gt(messages.createdAt, since),
+        afterStart,
         eq(messages.isSummary, false),
         isNull(messages.deletedAt)
       )
