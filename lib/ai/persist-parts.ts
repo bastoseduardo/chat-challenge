@@ -13,7 +13,7 @@ export function compactPartsForStorage(parts: UIMessage["parts"]): UIMessage["pa
   // têm uso na interface nem no relatório.
   return parts.filter((part) => part.type !== "custom").map((part) => {
     if (!("output" in part) || part.output === undefined) return part
-    const stripped = stripKeys(part.output, "encryptedContent")
+    const stripped = slimWebFetch(stripKeys(part.output, "encryptedContent"))
     const json = safeStringify(stripped)
     const output =
       json.length > MAX_TOOL_OUTPUT_BYTES
@@ -21,6 +21,22 @@ export function compactPartsForStorage(parts: UIMessage["parts"]): UIMessage["pa
         : stripped
     return { ...part, output } as typeof part
   })
+}
+
+/**
+ * Resultado do `web_fetch`: guarda só URL e título da página (o texto lido é
+ * grande e as citações já trazem os trechos). Sem isso o truncamento apagaria
+ * a URL, que `extractSources` usa pra ligar as citações à página.
+ */
+function slimWebFetch(value: unknown): unknown {
+  const v = value as { type?: unknown; url?: unknown; retrievedAt?: unknown; content?: { type?: unknown; title?: unknown } }
+  if (!v || typeof v !== "object" || v.type !== "web_fetch_result") return value
+  return {
+    type: v.type,
+    url: v.url,
+    ...(v.retrievedAt !== undefined && { retrievedAt: v.retrievedAt }),
+    content: { type: v.content?.type, title: v.content?.title },
+  }
 }
 
 function stripKeys(value: unknown, key: string): unknown {
